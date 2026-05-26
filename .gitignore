@@ -1,0 +1,20 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Local Environment & Secrets
+.env
+.env.local
+.env.development.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+data/session-audit.log
+
+# IDE / Operating System Junk
+.DS_Store
+.idea/
+.vscode/
+build/

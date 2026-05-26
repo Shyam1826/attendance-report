@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Employees - Attendance Tracking System</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Header Bar -->
+  <nav class="navbar navbar-expand-lg glass-panel m-3 py-3 border-secondary border-opacity-10">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand d-flex align-items-center gap-2 fw-bold text-dark fs-4" href="/dashboard">
+        <i class="bi bi-cpu text-primary fs-3"></i>
+        <span>Attendance <span class="text-primary font-monospace">Tracking</span></span>
+      </a>
+
+      <!-- Profile info & Navigation Controls -->
+      <div class="d-flex align-items-center gap-3">
+        <div class="user-profile-badge d-none d-md-flex">
+          <i class="bi bi-person-circle text-primary fs-5"></i>
+          <div>
+            <div id="user-profile-name" class="fw-bold small text-dark">Loading...</div>
+            <div id="user-profile-role" class="text-secondary" style="font-size: 0.7rem;">Admin</div>
+          </div>
+        </div>
+        <a href="/dashboard" class="btn btn-outline-dark btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+        <a href="/upload" class="btn btn-outline-primary btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-cloud-arrow-up-fill"></i> Upload Logs
+        </a>
+        <a href="/logout" class="btn btn-outline-danger btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-box-arrow-left"></i> Logout
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Notification Container -->
+  <div id="notification-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1080; display: flex; flex-direction: column; gap: 10px;"></div>
+
+  <div class="container-fluid px-4 py-2">
+    <!-- Main Employees Roster Card -->
+    <div class="glass-panel p-4 mb-4 shadow-sm border border-secondary border-opacity-10">
+      
+      <!-- Panel Header -->
+      <div class="d-flex flex-wrap align-items-center justify-content-between pb-3 border-bottom mb-4 gap-3">
+        <div>
+          <span class="text-secondary small font-monospace text-uppercase">// CORPORATE ROSTER PORTAL</span>
+          <h1 class="h2 headline-text mb-0 fw-bold text-primary">Employee Management</h1>
+        </div>
+        
+        <!-- Add New Employee Button -->
+        <button class="btn btn-primary bg-gradient d-flex align-items-center gap-2 px-4 py-2 shadow-sm font-monospace fw-semibold" onclick="openCreateModal()">
+          <i class="bi bi-person-plus-fill"></i> Register New Hire
+        </button>
+      </div>
+
+      <!-- Quick Roster Search Filter Bar -->
+      <div class="p-3 mb-4 rounded bg-light border shadow-sm">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-9 col-12">
+            <div class="input-group">
+              <span class="input-group-text bg-light border text-secondary"><i class="bi bi-search"></i></span>
+              <input type="text" id="roster-search" class="form-control custom-input" placeholder="Search by name, role, department, or ADID/Employee ID..." oninput="filterRoster()">
+            </div>
+          </div>
+          <div class="col-md-3 col-12">
+            <select id="roster-status-filter" class="form-select custom-input" onchange="filterRoster()">
+              <option value="All">All Profiles (Active & Deactivated)</option>
+              <option value="Active" selected>Active Employees Only</option>
+              <option value="Inactive">Deactivated Profiles Only</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Corporate Roster Table Grid -->
+      <div class="table-responsive rounded border overflow-hidden shadow-sm bg-white">
+        <table class="table table-bordered table-striped table-hover align-middle mb-0 custom-table">
+          <thead class="table-light">
+            <tr>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small">ADID / ID</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small">Employee Name</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small">Department</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small">Emp. Type</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small">Access Role</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Status</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small text-center" style="width: 200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="roster-table-body">
+            <tr>
+              <td colspan="7" class="text-center text-secondary py-5">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                Compiling corporate roster database...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CREATE EMPLOYEE MODAL -->
+  <div class="modal fade" id="createEmployeeModal" tabindex="-1" aria-labelledby="createEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-panel border border-secondary border-opacity-20 shadow-lg bg-white text-dark">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2" id="createEmployeeModalLabel">
+            <i class="bi bi-person-plus-fill"></i> Register New Hire
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="create-employee-form">
+          <div class="modal-body py-4 px-4">
+            <div id="create-error-box" class="alert alert-danger d-none py-2 px-3 small mb-3"></div>
+
+            <div class="mb-3">
+              <label for="create-employee-no" class="form-label text-secondary small font-monospace">Employee ID / ADID</label>
+              <input type="text" id="create-employee-no" class="form-control custom-input text-uppercase font-monospace" placeholder="e.g. EMP1001" required>
+            </div>
+            
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="create-first-name" class="form-label text-secondary small font-monospace">First Name</label>
+                <input type="text" id="create-first-name" class="form-control custom-input" placeholder="e.g. Jane" required>
+              </div>
+              <div class="col-6">
+                <label for="create-last-name" class="form-label text-secondary small font-monospace">Last Name</label>
+                <input type="text" id="create-last-name" class="form-control custom-input" placeholder="e.g. Doe" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="create-department" class="form-label text-secondary small font-monospace">Department Mapping</label>
+              <select id="create-department" class="form-select custom-input" required>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="create-role" class="form-label text-secondary small font-monospace">Access Role</label>
+              <select id="create-role" class="form-select custom-input" required>
+                <option value="User" selected>User (Standard Access)</option>
+                <option value="Admin">Admin (Full Portal Control)</option>
+              </select>
+            </div>
+
+            <div class="mb-2">
+              <label for="create-password" class="form-label text-secondary small font-monospace">Starting Password</label>
+              <input type="password" id="create-password" class="form-control custom-input font-monospace" placeholder="Password for SSMS validation" required>
+              <span class="text-secondary small mt-1 d-block" style="font-size: 0.72rem;">The password will be securely hashed with 10-rounds bcrypt before storing.</span>
+            </div>
+          </div>
+          <div class="modal-footer border-top bg-light">
+            <button type="button" class="btn btn-secondary btn-sm font-monospace py-2" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary bg-gradient btn-sm font-monospace py-2 px-4">Register Employee</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT / UPDATE EMPLOYEE MODAL -->
+  <div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-panel border border-secondary border-opacity-20 shadow-lg bg-white text-dark">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2" id="editEmployeeModalLabel">
+            <i class="bi bi-pencil-square text-success"></i> Edit Employee Profile
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="edit-employee-form">
+          <input type="hidden" id="edit-original-employee-no">
+          <div class="modal-body py-4 px-4">
+            <div id="edit-error-box" class="alert alert-danger d-none py-2 px-3 small mb-3"></div>
+
+            <div class="mb-3">
+              <label class="form-label text-secondary small font-monospace">Employee ID / ADID</label>
+              <input type="text" id="edit-employee-no" class="form-control custom-input text-uppercase font-monospace bg-light" disabled>
+            </div>
+            
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="edit-first-name" class="form-label text-secondary small font-monospace">First Name</label>
+                <input type="text" id="edit-first-name" class="form-control custom-input" required>
+              </div>
+              <div class="col-6">
+                <label for="edit-last-name" class="form-label text-secondary small font-monospace">Last Name</label>
+                <input type="text" id="edit-last-name" class="form-control custom-input" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="edit-department" class="form-label text-secondary small font-monospace">Department Mapping</label>
+              <select id="edit-department" class="form-select custom-input" required>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="edit-role" class="form-label text-secondary small font-monospace">Access Role</label>
+              <select id="edit-role" class="form-select custom-input" required>
+                <option value="User">User (Standard Access)</option>
+                <option value="Admin">Admin (Full Portal Control)</option>
+              </select>
+            </div>
+
+            <div class="mb-2">
+              <label for="edit-password" class="form-label text-secondary small font-monospace">Reset Password (Optional)</label>
+              <input type="password" id="edit-password" class="form-control custom-input font-monospace" placeholder="Leave empty to keep current password">
+              <span class="text-secondary small mt-1 d-block" style="font-size: 0.72rem;">If entered, password will be securely updated and re-hashed.</span>
+            </div>
+          </div>
+          <div class="modal-footer border-top bg-light">
+            <button type="button" class="btn btn-secondary btn-sm font-monospace py-2" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success bg-gradient btn-sm font-monospace py-2 px-4">Update Profile</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- CRUD Controller Javascript -->
+  <script>
+    let roster = [];
+    let departments = [];
+    let filteredRoster = [];
+
+    // Load active admin session
+    async function loadSession() {
+      try {
+        const res = await fetch('/api/session');
+        const data = await res.json();
+        if (data.loggedIn && data.user.role === 'Admin') {
+          document.getElementById('user-profile-name').textContent = data.user.name;
+          document.getElementById('user-profile-role').textContent = data.user.role;
+        } else {
+          window.location.href = '/dashboard';
+        }
+      } catch (error) {
+        window.location.href = '/login';
+      }
+    }
+
+    // Load roster and departments dropdowns
+    async function loadData() {
+      try {
+        // Load Departments
+        const deptRes = await fetch('/api/departments');
+        departments = await deptRes.json();
+        
+        // Populate create / edit modals
+        const createDeptSelect = document.getElementById('create-department');
+        const editDeptSelect = document.getElementById('edit-department');
+        
+        createDeptSelect.innerHTML = '<option value="" disabled selected>Select Department...</option>';
+        editDeptSelect.innerHTML = '';
+        
+        departments.forEach(d => {
+          const opt = `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`;
+          createDeptSelect.innerHTML += opt;
+          editDeptSelect.innerHTML += opt;
+        });
+
+        // Load Users Roster
+        const rosterRes = await fetch('/api/users');
+        roster = await rosterRes.json();
+        
+        filterRoster();
+      } catch (err) {
+        console.error('Failed to load roster:', err);
+        showNotification('Failed to connect to database roster.', 'danger');
+      }
+    }
+
+    // Initial load hook
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSession();
+      loadData();
+    });
+
+    // Frontend Filtering Engine
+    function filterRoster() {
+      const query = document.getElementById('roster-search').value.toLowerCase().trim();
+      const statusFilter = document.getElementById('roster-status-filter').value;
+      
+      filteredRoster = roster.filter(user => {
+        // Status filter
+        if (statusFilter === 'Active' && !user.IsActive) return false;
+        if (statusFilter === 'Inactive' && user.IsActive) return false;
+
+        // Search text filter
+        if (query !== '') {
+          const fullName = `${user.FirstName || ''} ${user.LastName || ''}`.toLowerCase();
+          const matchNo = String(user.EmployeeNo).toLowerCase().includes(query);
+          const matchName = fullName.includes(query);
+          const matchRole = String(user.Role).toLowerCase().includes(query);
+          const matchDept = String(user.DepartmentName).toLowerCase().includes(query);
+          return matchNo || matchName || matchRole || matchDept;
+        }
+
+        return true;
+      });
+
+      renderRosterTable();
+    }
+
+    // Roster grid rendering
+    function renderRosterTable() {
+      const tbody = document.getElementById('roster-table-body');
+      tbody.innerHTML = '';
+
+      if (filteredRoster.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center text-secondary py-5">
+              <i class="bi bi-people fs-2 d-block mb-2"></i>
+              No employee profiles match the active roster filters.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filteredRoster.forEach(row => {
+        const tr = document.createElement('tr');
+        
+        // Active status styling
+        const statusBadge = row.IsActive 
+          ? `<span class="badge bg-success bg-gradient px-3 py-1 font-monospace" style="font-size: 0.72rem;">ACTIVE</span>`
+          : `<span class="badge bg-danger bg-gradient px-3 py-1 font-monospace" style="font-size: 0.72rem;">DEACTIVATED</span>`;
+        
+        // Toggle action details (soft delete)
+        const toggleBtn = row.IsActive
+          ? `<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 font-monospace" onclick="toggleEmployeeStatus('${row.EmployeeNo}', false)">
+               <i class="bi bi-person-x-fill"></i> Deactivate
+             </button>`
+          : `<button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 font-monospace" onclick="toggleEmployeeStatus('${row.EmployeeNo}', true)">
+               <i class="bi bi-person-check-fill"></i> Reactivate
+             </button>`;
+
+        tr.innerHTML = `
+          <td class="font-monospace fw-bold text-primary">${row.EmployeeNo}</td>
+          <td>
+            <div class="fw-semibold text-dark">${row.FirstName} ${row.LastName}</div>
+          </td>
+          <td><span class="text-secondary">${row.DepartmentName || 'N/A'}</span></td>
+          <td><span class="text-secondary fw-medium">${row.EmpType || 'N/A'}</span></td>
+          <td>
+            <span class="badge ${row.Role === 'Admin' ? 'bg-primary bg-opacity-10 text-primary' : 'bg-secondary bg-opacity-10 text-secondary'} font-monospace px-2 py-1">
+              ${row.Role.toUpperCase()}
+            </span>
+          </td>
+          <td class="text-center">${statusBadge}</td>
+          <td class="text-center">
+            <div class="d-flex align-items-center justify-content-center gap-2">
+              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 font-monospace" onclick="openEditModal('${row.EmployeeNo}', '${row.FirstName}', '${row.LastName}', ${row.DepartmentID}, '${row.Role}')">
+                <i class="bi bi-pencil-square"></i> Edit
+              </button>
+              ${toggleBtn}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Modal Create Open Trigger
+    function openCreateModal() {
+      document.getElementById('create-employee-form').reset();
+      document.getElementById('create-error-box').classList.add('d-none');
+      
+      const modal = new bootstrap.Modal(document.getElementById('createEmployeeModal'));
+      modal.show();
+    }
+
+    // Form Submit CREATE manual register
+    document.getElementById('create-employee-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const employeeNo = document.getElementById('create-employee-no').value;
+      const firstName = document.getElementById('create-first-name').value;
+      const lastName = document.getElementById('create-last-name').value;
+      const departmentId = document.getElementById('create-department').value;
+      const role = document.getElementById('create-role').value;
+      const password = document.getElementById('create-password').value;
+
+      try {
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employeeNo, firstName, lastName, departmentId, role, password })
+        });
+
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+          bootstrap.Modal.getInstance(document.getElementById('createEmployeeModal')).hide();
+          showNotification(data.message, 'success');
+          loadData();
+        } else {
+          showModalError('create-error-box', data.error || 'Failed to register employee.');
+        }
+      } catch (err) {
+        showModalError('create-error-box', 'Network communication failure during manual register.');
+      }
+    });
+
+    // Modal Edit Open Trigger
+    function openEditModal(empNo, first, last, deptId, role) {
+      document.getElementById('edit-employee-form').reset();
+      document.getElementById('edit-error-box').classList.add('d-none');
+      
+      document.getElementById('edit-original-employee-no').value = empNo;
+      document.getElementById('edit-employee-no').value = empNo;
+      document.getElementById('edit-first-name').value = first;
+      document.getElementById('edit-last-name').value = last;
+      document.getElementById('edit-department').value = deptId;
+      document.getElementById('edit-role').value = role;
+
+      const modal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
+      modal.show();
+    }
+
+    // Form Submit UPDATE edit details
+    document.getElementById('edit-employee-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const originalEmpNo = document.getElementById('edit-original-employee-no').value;
+      const firstName = document.getElementById('edit-first-name').value;
+      const lastName = document.getElementById('edit-last-name').value;
+      const departmentId = document.getElementById('edit-department').value;
+      const role = document.getElementById('edit-role').value;
+      const password = document.getElementById('edit-password').value;
+
+      const payload = { firstName, lastName, departmentId, role };
+      if (password && password.trim() !== '') {
+        payload.password = password;
+      }
+
+      try {
+        const res = await fetch(`/api/users/${originalEmpNo}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+          bootstrap.Modal.getInstance(document.getElementById('editEmployeeModal')).hide();
+          showNotification(data.message, 'success');
+          loadData();
+        } else {
+          showModalError('edit-error-box', data.error || 'Failed to update employee.');
+        }
+      } catch (err) {
+        showModalError('edit-error-box', 'Network communication failure during profile update.');
+      }
+    });
+
+    // Soft-Delete Toggle Actions
+    async function toggleEmployeeStatus(empNo, targetActiveStatus) {
+      const alertLabel = targetActiveStatus ? 'reactivate' : 'deactivate';
+      if (!confirm(`Are you absolutely sure you want to ${alertLabel} employee profile ${empNo}? (Historical punch records are kept in database audits)`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/users/${empNo}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: targetActiveStatus })
+        });
+
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+          showNotification(data.message, 'success');
+          loadData();
+        } else {
+          showNotification(data.error || 'Failed to toggle employee status.', 'danger');
+        }
+      } catch (err) {
+        showNotification('Network communication failure during status deactivation.', 'danger');
+      }
+    }
+
+    // Floating Notification Alert Utilities
+    function showNotification(msg, type) {
+      const container = document.getElementById('notification-container');
+      if (!container) return;
+      
+      const alertEl = document.createElement('div');
+      alertEl.className = `alert alert-glass${type === 'success' ? '-success' : ''} shadow border-secondary border-opacity-10 py-2 px-3 m-0 d-flex align-items-center gap-2 text-dark font-monospace`;
+      alertEl.innerHTML = `
+        <i class="bi ${type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger'}"></i>
+        <span>${msg}</span>
+      `;
+      
+      container.appendChild(alertEl);
+      setTimeout(() => {
+        alertEl.classList.add('fade');
+        setTimeout(() => alertEl.remove(), 500);
+      }, 3000);
+    }
+
+    // Modal specific inline alert handler
+    function showModalError(boxId, msg) {
+      const errBox = document.getElementById(boxId);
+      errBox.textContent = msg;
+      errBox.classList.remove('d-none');
+    }
+  </script>
+</body>
+</html>

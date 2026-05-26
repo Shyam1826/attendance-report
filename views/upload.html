@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Attendance - Attendance Tracking System</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Header Bar -->
+  <nav class="navbar navbar-expand-lg glass-panel m-3 py-3 border-secondary border-opacity-10">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand d-flex align-items-center gap-2 fw-bold text-dark fs-4" href="/dashboard">
+        <i class="bi bi-cpu text-primary fs-3"></i>
+        <span>Attendance <span class="text-primary font-monospace">Tracking</span></span>
+      </a>
+
+      <!-- Profile info & Navigation Controls -->
+      <div class="d-flex align-items-center gap-3">
+        <a href="/dashboard" class="btn btn-outline-dark btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+        <a href="/users" class="btn btn-outline-primary btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-people-fill"></i> Manage Employees
+        </a>
+        <a href="/logout" class="btn btn-outline-danger btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-box-arrow-left"></i> Logout
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-auto py-4" style="max-width: 600px;">
+    <div class="glass-panel p-4 p-md-5 shadow-sm border border-secondary border-opacity-10">
+      
+      <!-- Card Header -->
+      <div class="text-center mb-4">
+        <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-gradient rounded text-white p-3 mb-3 shadow-sm">
+          <i class="bi bi-cloud-arrow-up-fill fs-3"></i>
+        </div>
+        <h2 class="headline-text fw-bold text-primary">Upload Biometric Logs</h2>
+        <p class="text-secondary small">Overwrite or append system logs dynamically using biometric raw scan data sheets.</p>
+      </div>
+
+      <!-- Feedbacks -->
+      <div id="alert-box" class="alert d-none py-2 px-3 mb-3"></div>
+
+      <!-- Drag & Drop Uploader Form -->
+      <form id="upload-form" enctype="multipart/form-data">
+        <!-- Select Document Type -->
+        <div class="mb-4">
+          <label for="uploadType" class="form-label small font-monospace text-secondary">// SELECT DOCUMENT TYPE</label>
+          <select id="uploadType" name="uploadType" class="form-select custom-input py-2 px-3">
+            <option value="attendance" selected>Biometric Attendance Logs (Logs Ingestion)</option>
+            <option value="roster">Master Corporate File (Profiles Sync)</option>
+          </select>
+        </div>
+
+        <div id="drop-zone" class="drag-drop-zone mb-4">
+          <i class="bi bi-file-earmark-excel fs-1 text-primary d-block mb-2"></i>
+          <span class="d-block fw-semibold text-dark mb-1">Drag & Drop Excel or CSV file here</span>
+          <span class="text-secondary small d-block mb-3">supports .xlsx, .xls, and .csv extensions simultaneously</span>
+          
+          <input type="file" id="attendanceFile" name="attendanceFile" accept=".csv,.xlsx,.xls" class="d-none">
+          <button type="button" id="browse-btn" class="btn btn-outline-secondary btn-sm px-3 font-monospace">Browse Files</button>
+        </div>
+
+        <!-- Selected File Indicator (hidden by default) -->
+        <div id="file-info" class="d-none p-3 mb-4 rounded bg-light border d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center gap-3 overflow-hidden">
+            <i id="file-icon" class="bi bi-file-earmark-excel-fill text-success fs-3"></i>
+            <div class="overflow-hidden">
+              <div id="file-name" class="fw-semibold text-truncate text-dark" style="font-size: 0.9rem;">attendance.csv</div>
+              <div id="file-size" class="text-secondary" style="font-size: 0.75rem;">0 KB</div>
+            </div>
+          </div>
+          <button type="button" id="remove-file-btn" class="btn btn-link text-danger p-0" title="Remove file">
+            <i class="bi bi-trash-fill fs-5"></i>
+          </button>
+        </div>
+
+        <!-- Progress Bar Indicator (hidden by default) -->
+        <div id="progress-container" class="d-none mb-4">
+          <div class="d-flex justify-content-between mb-1 small text-secondary font-monospace">
+            <span>// UPLOAD PROGRESS</span>
+            <span id="progress-text">0%</span>
+          </div>
+          <div class="progress" style="height: 8px;">
+            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+        </div>
+
+        <!-- Format Helper Alert -->
+        <div id="format-helper-container" class="alert alert-secondary bg-light border p-3 mb-4 small">
+          <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-info-circle text-primary me-2"></i>Biometric Scanner Columns:</h6>
+          <p class="text-secondary small mb-2">The parser normalizes headers case-insensitively and maps:</p>
+          <code class="text-primary font-monospace" style="font-size: 0.75rem;">PersonNo (or Staff ID), Date, Time, DeviceName, AreaName</code>
+          <p class="text-secondary small mt-2 mb-0">Logs are strictly validated against existing Staff Numbers. Missing users are skipped.</p>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="submit-btn" class="btn btn-primary bg-gradient w-100 py-2 fw-medium shadow-sm" disabled>
+          <i class="bi bi-cloud-arrow-up-fill me-1"></i> Update Biometric Database
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- High-visibility metrics modal -->
+  <div class="modal fade" id="metricsModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="metricsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-panel border border-secondary border-opacity-20 shadow-lg bg-white">
+        <div class="modal-header border-bottom bg-primary bg-opacity-10 py-3">
+          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2" id="metricsModalLabel">
+            <i class="bi bi-shield-check-fill text-success fs-4"></i> Database Update Successful!
+          </h5>
+        </div>
+        <div class="modal-body py-4 px-4 text-dark">
+          <div class="alert alert-success d-flex align-items-center gap-2 small mb-4 py-2 px-3">
+            <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+            <span>Biometric log import pipeline completed successfully.</span>
+          </div>
+          
+          <div class="text-secondary small font-monospace fw-semibold mb-3">// TRANSACTION PROCESSING METRICS</div>
+          
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <div class="p-3 bg-light border rounded text-center shadow-sm">
+                <div id="metric-imported-label" class="text-secondary font-monospace" style="font-size: 0.72rem;">// IMPORTED ROWS</div>
+                <div class="fw-bold fs-3 text-success mt-1" id="metric-imported">0</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="p-3 bg-light border rounded text-center shadow-sm">
+                <div id="metric-skipped-label" class="text-secondary font-monospace" style="font-size: 0.72rem;">// SKIPPED DUPLICATES</div>
+                <div class="fw-bold fs-3 text-warning mt-1" id="metric-skipped">0</div>
+              </div>
+            </div>
+            <div class="col-12 mt-2">
+              <div class="p-3 bg-light border rounded text-center shadow-sm">
+                <div id="metric-provisioned-label" class="text-secondary font-monospace" style="font-size: 0.72rem;">// AUTO-PROVISIONED USERS</div>
+                <div class="fw-bold fs-3 text-primary mt-1" id="metric-provisioned">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" id="metrics-close-btn" class="btn btn-primary bg-gradient px-4 font-monospace py-2">
+            Go to Dashboard <i class="bi bi-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS (Includes Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('attendanceFile');
+    const browseBtn = document.getElementById('browse-btn');
+    const fileInfo = document.getElementById('file-info');
+    const fileNameEl = document.getElementById('file-name');
+    const fileSizeEl = document.getElementById('file-size');
+    const fileIcon = document.getElementById('file-icon');
+    const removeFileBtn = document.getElementById('remove-file-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const alertBox = document.getElementById('alert-box');
+    const uploadForm = document.getElementById('upload-form');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+
+    // Make sure user has active admin session
+    async function verifyAdmin() {
+      try {
+        const res = await fetch('/api/session');
+        const data = await res.json();
+        if (!data.loggedIn || data.user.role !== 'Admin') {
+          window.location.href = '/dashboard';
+        }
+      } catch (error) {
+        window.location.href = '/login';
+      }
+    }
+    verifyAdmin();
+
+    // Trigger File Input Click on Browse click
+    browseBtn.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('click', (e) => {
+      if (e.target !== browseBtn) fileInput.click();
+    });
+
+    // Drag-and-Drop Drag Events
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+      }, false);
+    });
+
+    // Handle dropped files
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) {
+        fileInput.files = files;
+        handleFileSelection();
+      }
+    });
+
+    // Handle Input change
+    fileInput.addEventListener('change', handleFileSelection);
+
+    // Selected file presentation
+    function handleFileSelection() {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      if (ext !== '.csv' && ext !== '.xlsx' && ext !== '.xls') {
+        showAlert('Only CSV (.csv) or Excel (.xlsx, .xls) files are accepted.', 'danger');
+        removeFile();
+        return;
+      }
+
+      fileNameEl.textContent = file.name;
+      fileSizeEl.textContent = (file.size / 1024).toFixed(1) + ' KB';
+      
+      // Update file type icon
+      if (ext === '.csv') {
+        fileIcon.className = 'bi bi-filetype-csv text-success fs-3';
+      } else {
+        fileIcon.className = 'bi bi-filetype-xlsx text-primary fs-3';
+      }
+
+      // Toggle visibility
+      dropZone.classList.add('d-none');
+      fileInfo.classList.remove('d-none');
+      submitBtn.disabled = false;
+      
+      hideAlert();
+    }
+
+    // Remove File click handler
+    removeFileBtn.addEventListener('click', removeFile);
+
+    function removeFile() {
+      fileInput.value = '';
+      dropZone.classList.remove('d-none');
+      fileInfo.classList.add('d-none');
+      progressContainer.classList.add('d-none');
+      submitBtn.disabled = true;
+    }
+
+    const uploadTypeSelect = document.getElementById('uploadType');
+    const formatHelperContainer = document.getElementById('format-helper-container');
+
+    // Dynamic instructions update on upload selection change
+    uploadTypeSelect.addEventListener('change', () => {
+      const type = uploadTypeSelect.value;
+      if (type === 'roster') {
+        formatHelperContainer.innerHTML = `
+          <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-info-circle text-primary me-2"></i>Master Roster Columns:</h6>
+          <p class="text-secondary small mb-2">The parser normalizes headers case-insensitively and maps:</p>
+          <code class="text-primary font-monospace" style="font-size: 0.75rem;">Staff No. (EmployeeNo), Name (Splits into First/Last), Department (Validates 25 depts), Emp.Type</code>
+          <p class="text-secondary small mt-2 mb-0">New profiles are dynamically UPSERTED into the Users table (Active status defaults to 1).</p>
+        `;
+        submitBtn.innerHTML = '<i class="bi bi-person-fill-check me-1"></i> Synchronize Corporate Roster';
+      } else {
+        formatHelperContainer.innerHTML = `
+          <h6 class="fw-bold text-dark small mb-2"><i class="bi bi-info-circle text-primary me-2"></i>Biometric Scanner Columns:</h6>
+          <p class="text-secondary small mb-2">The parser normalizes headers case-insensitively and maps:</p>
+          <code class="text-primary font-monospace" style="font-size: 0.75rem;">PersonNo (or Staff ID), Date, Time, DeviceName, AreaName</code>
+          <p class="text-secondary small mt-2 mb-0">Logs are strictly validated against existing Staff Numbers. Missing users are skipped.</p>
+        `;
+        submitBtn.innerHTML = '<i class="bi bi-cloud-arrow-up-fill me-1"></i> Update Biometric Database';
+      }
+    });
+
+    // Handle upload submit using XHR for progression monitoring
+    uploadForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('attendanceFile', file);
+      formData.append('uploadType', uploadTypeSelect.value);
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing streams...';
+      progressContainer.classList.remove('d-none');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/upload', true);
+
+      // Track progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          progressBar.style.width = percentComplete + '%';
+          progressBar.setAttribute('aria-valuenow', percentComplete);
+          progressText.textContent = percentComplete + '%';
+          if (percentComplete === 100) {
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Analyzing biometric logs...';
+          }
+        }
+      });
+
+      // Handle server response
+      xhr.addEventListener('load', () => {
+        let data = {};
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch (e) {
+          data = { error: 'Failed to read server response.' };
+        }
+
+        if (xhr.status === 200 && data.success) {
+          // Fill in modal metrics
+          document.getElementById('metric-imported').textContent = data.importedRows || 0;
+          document.getElementById('metric-skipped').textContent = data.skippedDuplicates || 0;
+          document.getElementById('metric-provisioned').textContent = data.autoProvisionedUsers || 0;
+
+          // Adapt modal text based on upload type
+          const type = uploadTypeSelect.value;
+          if (type === 'roster') {
+            document.getElementById('metricsModalLabel').innerHTML = '<i class="bi bi-person-fill-check text-success fs-4"></i> Roster Synchronized!';
+            document.getElementById('metric-imported-label').textContent = '// PROFILES UPSERTED';
+            document.getElementById('metric-skipped-label').textContent = '// UNCHANGED PROFILES';
+            document.getElementById('metric-provisioned-label').textContent = '// NEW DEPARTMENTS PROVISIONED';
+            document.getElementById('metric-provisioned').textContent = data.autoProvisionedDepartments || 0;
+          } else {
+            document.getElementById('metricsModalLabel').innerHTML = '<i class="bi bi-shield-check-fill text-success fs-4"></i> Database Update Successful!';
+            document.getElementById('metric-imported-label').textContent = '// IMPORTED ROWS';
+            document.getElementById('metric-skipped-label').textContent = '// SKIPPED DUPLICATES';
+            document.getElementById('metric-provisioned-label').textContent = '// UNKNOWN RECORDS SKIPPED';
+            document.getElementById('metric-provisioned').textContent = data.autoProvisionedUsers || 0; // skipped unmapped counts
+          }
+
+          // Open metrics summary modal
+          const modal = new bootstrap.Modal(document.getElementById('metricsModal'));
+          modal.show();
+
+          // Hook modal close redirects
+          document.getElementById('metrics-close-btn').addEventListener('click', () => {
+            window.location.href = '/dashboard';
+          });
+        } else {
+          showAlert(data.error || 'Failed to process logs import.', 'danger');
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = uploadTypeSelect.value === 'roster' 
+            ? '<i class="bi bi-person-fill-check me-1"></i> Synchronize Corporate Roster'
+            : '<i class="bi bi-cloud-arrow-up-fill me-1"></i> Update Biometric Database';
+          progressContainer.classList.add('d-none');
+        }
+      });
+
+      // Handle network failure
+      xhr.addEventListener('error', () => {
+        showAlert('Network connectivity failure during upload.', 'danger');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = uploadTypeSelect.value === 'roster' 
+          ? '<i class="bi bi-person-fill-check me-1"></i> Synchronize Corporate Roster'
+          : '<i class="bi bi-cloud-arrow-up-fill me-1"></i> Update Biometric Database';
+        progressContainer.classList.add('d-none');
+      });
+
+      xhr.send(formData);
+    });
+
+    // Alert Utilities
+    function showAlert(msg, type) {
+      alertBox.textContent = msg;
+      alertBox.className = `alert alert-glass${type === 'success' ? '-success' : ''} py-2 px-3 mb-3`;
+      alertBox.classList.remove('d-none');
+    }
+
+    function hideAlert() {
+      alertBox.classList.add('d-none');
+    }
+  </script>
+</body>
+</html>
