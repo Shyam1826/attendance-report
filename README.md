@@ -1,3 +1,4 @@
+cat << 'EOF' > README.md
 # Enterprise Biometric Attendance & Relational Analytics Engine
 ### **Core Project Identity:** Project Antigravity 🚀
 
@@ -13,9 +14,7 @@ An administrative, high-performance web platform engineered to securely ingest, 
 * **In-Memory Streaming Architecture:** Implements a zero-disk streaming blueprint using memory-buffered `Multer` layers. Spreadsheet buffers are parsed in temporary system RAM and completely cleared the exact millisecond the database transaction resolves.
 
 ### 🧠 **Advanced Algorithmic Validation**
-* **Strict Null-Preservation Boundary Layer:** Replaces destructive default time fallbacks (e.g., forcing a missing checkout to show as 6:00 PM). Single punches are routed through an intelligent **1:00 PM (13:00) directional boundary classifier**:
-  * **Swipe Before 13:00:** Marked as a valid entry (`FirstIn`), sets `LastOut = null`, and flags `TotalHours = 'Not Checked Out'` (rendered in warning-yellow).
-  * **Swipe At/After 13:00:** Marked as a valid exit (`LastOut`), sets `FirstIn = null`, and flags `TotalHours = 'Not Checked In'` (rendered in danger-red).
+* **Absolute First-In/Last-Out Analytics Engine:** Eliminates guessing variables by tracking real-world multi-punch tracking cycles. The engine programmatically scans a day's event array, pulling the absolute earliest timestamp as the formal check-in and the absolute latest timestamp as the formal checkout. If an employee logs only a single punch, the counterpart is preserved as `NULL` and flagged contextually (`Not Checked Out` / `Not Checked In`) to highlight anomalies for manual HR adjustments without dropping database integrity.
 * **Adaptive Indian Name-Preservation Engine:** Completely suppresses standard Western whitespace-splitting algorithms when dealing with unified string cells (e.g., *"T S Shyam Ganeesh"*). It preserves the untruncated string inside the database `LastName` while cleanly mapping `FirstName` to an empty state (`NULL`), entirely eliminating layout fragmentation.
 * **Dynamic Auto-Provisioning Checkpoints:** Scans incoming files for unmapped business departments. If a new department string is detected, the engine dynamically provisions a fresh lookup ID inside the master record matrix without crashing the active file pipeline.
 
@@ -75,15 +74,15 @@ The database architecture is fully normalized and organized across three interco
 2. **`Users` Table:** The structural roster backbone storing names, employment types, active states, and matching relational department keys.
 3. **`AttendanceLogs` Table:** A high-speed transaction tier storing the individual raw badge swipes.
 
-            ┌──────────────────────────────────────────┐
-              │               DEPARTMENTS                │
-              ├──────────────────────────────────────────┤
-              │ PK │ DepartmentID (int, auto_increment)  │
-              │    │ DepartmentName (nvarchar)           │
-              └─────────────────┬────────────────────────┘
-                                │
-                                │ 1:N Relation
-                                ▼
+                    ┌──────────────────────────────────────────┐
+                  │               DEPARTMENTS                │
+                  ├──────────────────────────────────────────┤
+                  │ PK │ DepartmentID (int, auto_increment)  │
+                  │    │ DepartmentName (nvarchar)           │
+                  └─────────────────┬────────────────────────┘
+                                    │
+                                    │ 1:N Relation
+                                    ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
 │                                       USERS                                          │
 ├──────────────────────────────────────────────────────────────────────────────────────┤
@@ -94,20 +93,19 @@ The database architecture is fully normalized and organized across three interco
 │    │ EmpType      (nvarchar, tracks Permanent / Contractor status)                   │
 │    │ PasswordHash (nvarchar, encrypted bcrypt string)                                 │
 │    │ IsActive     (bit, soft-delete control switch)                                  │
-└──────────────────────────────────────────┬────────────────────────────────___________
-                                            │
-                                            │ 1:N Relation
-                                            ▼
-                    ┌──────────────────────────────────────────┐
-                    │             ATTENDANCELOGS               │
-                    ├──────────────────────────────────────────┤
-                    │ PK │ LogID        (bigint, identity)     │
-                    │ FK │ EmployeeNo   (nvarchar, matches Users)│
-                    │    │ LogDate      (date)                 │
-                    │    │ LogTime      (time)                 │
-                    │    │ DeviceName   (nvarchar)             │
-                    └──────────────────────────────────────────┘
-
+└──────────────────────────────────────────┬────────────────────────────────___________┘
+                                           │
+                                           │ 1:N Relation
+                                           ▼
+                  ┌──────────────────────────────────────────┐
+                  │             ATTENDANCELOGS               │
+                  ├──────────────────────────────────────────┤
+                  │ PK │ LogID        (bigint, identity)     │
+                  │ FK │ EmployeeNo   (nvarchar, matches Users)│
+                  │    │ LogDate      (date)                 │
+                  │    │ LogTime      (time)                 │
+                  │    │ DeviceName   (nvarchar)             │
+                  └──────────────────────────────────────────┘
 
 Whenever the analytics dashboard loads, it executes a strict **SQL `INNER JOIN`** query across all three tables, binding biometric log entries directly to active roster structures to generate up-to-the-minute metrics:
 
@@ -117,17 +115,18 @@ FROM AttendanceLogs a
 INNER JOIN Users u ON a.EmployeeNo = u.EmployeeNo
 INNER JOIN Departments d ON u.DepartmentID = d.DepartmentID
 WHERE u.IsActive = 1;
-
+```
 🚀 Environment Deployment & Local Setup
 1. Repository Installation
 Navigate into your local project directory and run the initialization build command:
-
-Bash
+```Bash
 npm install
+```
+
 2. Physical Schema Setup
 Open your database controller (SQL Server Management Studio, Azure Data Studio, or command-line sqlcmd). Execute the schema building and setup files in order from the repository base:
 
-Bash
+```Bash
 # Initialize base configuration settings and clear old states
 sqlcmd -S localhost -U sa -P YourPassword -i database/01-create-database.sql
 
@@ -136,9 +135,11 @@ sqlcmd -S localhost -U sa -P YourPassword -i database/02-create-schema.sql
 
 # Seed system core permissions and administrative credentials
 sqlcmd -S localhost -U sa -P YourPassword -i database/03-seed-data.sql
+```
 3. Environment Variable Configuration
 Verify your local .env parameters match your physical server connection routes:
 
+```Bash
 Properties
 DB_SERVER=localhost
 DB_DATABASE=attendance
@@ -147,9 +148,10 @@ DB_PASSWORD=YourPassword123
 DB_PORT=1433
 DB_ENCRYPT=false
 DB_TRUST_SERVER_CERTIFICATE=true
+```
 4. Run the Platform
 Boot the platform interface. For active development with real-time change tracking and code reloads, execute:
 
-Bash
+```Bash
 npm run dev
-Open your preferred web browser and direct your navigation URL pointer to: http://localhost:3000
+```
