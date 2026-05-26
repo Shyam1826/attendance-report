@@ -1,4 +1,3 @@
-cat << 'EOF' > README.md
 # Enterprise Biometric Attendance & Relational Analytics Engine
 ### **Core Project Identity:** Project Antigravity 🚀
 
@@ -74,6 +73,7 @@ The database architecture is fully normalized and organized across three interco
 2. **`Users` Table:** The structural roster backbone storing names, employment types, active states, and matching relational department keys.
 3. **`AttendanceLogs` Table:** A high-speed transaction tier storing the individual raw badge swipes.
 
+```
                     ┌──────────────────────────────────────────┐
                   │               DEPARTMENTS                │
                   ├──────────────────────────────────────────┤
@@ -106,6 +106,7 @@ The database architecture is fully normalized and organized across three interco
                   │    │ LogTime      (time)                 │
                   │    │ DeviceName   (nvarchar)             │
                   └──────────────────────────────────────────┘
+```
 
 Whenever the analytics dashboard loads, it executes a strict **SQL `INNER JOIN`** query across all three tables, binding biometric log entries directly to active roster structures to generate up-to-the-minute metrics:
 
