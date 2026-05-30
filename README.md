@@ -74,7 +74,7 @@ The database architecture is fully normalized and organized across three interco
 2. **`Users` Table:** The structural roster backbone storing names, employment types, active states, and matching relational department keys.
 3. **`AttendanceLogs` Table:** A high-speed transaction tier storing the individual raw badge swipes.
 
-                    ┌──────────────────────────────────────────┐
+                  ┌──────────────────────────────────────────┐
                   │               DEPARTMENTS                │
                   ├──────────────────────────────────────────┤
                   │ PK │ DepartmentID (int, auto_increment)  │

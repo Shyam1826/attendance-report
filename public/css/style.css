@@ -271,3 +271,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .timeline-point:last-child {
   padding-bottom: 0;
 }
+
+/* Bright Red alert styling for unauthorized entries */
+.table-danger {
+  background-color: rgba(220, 38, 38, 0.05) !important;
+}
+
+.badge.bg-danger {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+

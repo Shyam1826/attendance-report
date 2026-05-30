@@ -65,9 +65,9 @@
             <div id="user-profile-role" class="text-secondary" style="font-size: 0.7rem;">Staff</div>
           </div>
         </div>
-        <a href="/upload" class="btn btn-outline-primary btn-sm admin-only d-none d-flex align-items-center gap-2 px-3">
+        <!-- <a href="/upload" class="btn btn-outline-primary btn-sm admin-only d-none d-flex align-items-center gap-2 px-3">
           <i class="bi bi-cloud-arrow-up-fill"></i> Upload Logs
-        </a>
+        </a> -->
         <a href="/users" class="btn btn-outline-primary btn-sm admin-only d-none d-flex align-items-center gap-2 px-3">
           <i class="bi bi-people-fill"></i> Manage Employees
         </a>
@@ -169,36 +169,48 @@
       <div class="filter-section p-3 mb-4 rounded bg-light border shadow-sm">
         <div class="row g-3">
           <!-- From Date -->
-          <div class="col-md-2 col-sm-6">
+          <div class="col-lg-2 col-md-4 col-sm-6">
             <label for="filter-from-date" class="form-label text-secondary small font-monospace">From Date</label>
             <input type="date" id="filter-from-date" class="form-control custom-input">
           </div>
           <!-- To Date -->
-          <div class="col-md-2 col-sm-6">
+          <div class="col-lg-2 col-md-4 col-sm-6">
             <label for="filter-to-date" class="form-label text-secondary small font-monospace">To Date</label>
             <input type="date" id="filter-to-date" class="form-control custom-input">
           </div>
           <!-- Department -->
-          <div class="col-md-3 col-sm-6">
+          <div class="col-lg-2 col-md-4 col-sm-6">
             <label for="filter-department" class="form-label text-secondary small font-monospace">Department</label>
             <select id="filter-department" class="form-select custom-input">
               <option value="All">All Departments</option>
             </select>
           </div>
           <!-- Status -->
-          <div class="col-md-2 col-sm-6">
+          <div class="col-lg-2 col-md-4 col-sm-6">
             <label for="filter-status" class="form-label text-secondary small font-monospace">Status</label>
             <select id="filter-status" class="form-select custom-input">
               <option value="All">All Statuses</option>
+              <option value="ONTIME">ONTIME</option>
+              <option value="OVERTIME">OVERTIME</option>
+              <option value="LATE_ENTRY_AND_LATE_EXIT">LATE ENTRY & LATE EXIT</option>
+              <option value="EARLY_DEPARTURE">EARLY DEPARTURE</option>
+              <option value="LATE_ENTRY_AND_EARLY_EXIT">LATE ENTRY & EARLY EXIT</option>
+              <option value="Incomplete Record">Incomplete Record</option>
             </select>
           </div>
           <!-- Search Box -->
-          <div class="col-md-3 col-12">
+          <div class="col-lg-2 col-md-4 col-sm-6">
             <label for="filter-search" class="form-label text-secondary small font-monospace">Search Employee</label>
             <div class="input-group">
               <span class="input-group-text bg-light border text-secondary"><i class="bi bi-search"></i></span>
               <input type="text" id="filter-search" class="form-control custom-input" placeholder="Search by name/ID...">
             </div>
+          </div>
+          <!-- Clear Filters -->
+          <div class="col-lg-2 col-md-4 col-sm-6 d-flex align-items-end">
+            <button type="button" id="clear-filters-btn" class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-2" style="border-radius: 8px; padding: 10px 14px; height: 45px;">
+              <i class="bi bi-x-circle"></i> Clear Filters
+            </button>
           </div>
         </div>
       </div>
@@ -239,45 +251,26 @@
               <div id="table-loader" class="app-loader d-none"></div>
             </div>
             
-            <div class="table-responsive rounded border overflow-hidden shadow-sm">
-              <table class="table table-bordered table-striped table-hover align-middle mb-0 custom-table">
+            <div class="table-responsive rounded border overflow-hidden shadow-sm bg-white mt-3">
+              <table class="table table-bordered table-striped table-hover align-middle mb-0 custom-table" style="min-width: 1050px;">
                 <thead class="table-light">
                   <tr>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="EmployeeID" style="cursor: pointer; user-select: none;">
-                      Employee ID <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="FirstName" style="cursor: pointer; user-select: none;">
-                      First Name <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="LastName" style="cursor: pointer; user-select: none;">
-                      Last Name <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Department" style="cursor: pointer; user-select: none;">
-                      Department <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="EmpType" style="cursor: pointer; user-select: none;">
-                      Emp. Type <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Date" style="cursor: pointer; user-select: none;">
-                      Date <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Weekday" style="cursor: pointer; user-select: none;">
-                      Weekday <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="FirstIn" style="cursor: pointer; user-select: none;">
-                      First Check In <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="LastOut" style="cursor: pointer; user-select: none;">
-                      Last Check Out <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="TotalHours" style="cursor: pointer; user-select: none;">
-                      Total Time <span class="ms-1"><i class="bi bi-arrow-down-up opacity-20"></i></span>
-                    </th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="EmployeeID" style="cursor: pointer; user-select: none;">Employee ID</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Name" style="cursor: pointer; user-select: none;">Employee Name</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Department" style="cursor: pointer; user-select: none;">Department</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="EmpType" style="cursor: pointer; user-select: none;">Emp. Type</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Date" style="cursor: pointer; user-select: none;">Date</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Weekday" style="cursor: pointer; user-select: none;">Weekday</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small">First Check In</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small">Last Check Out</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="TotalHours" style="cursor: pointer; user-select: none;">Total Time</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" data-column="Status" style="cursor: pointer; user-select: none;">Status</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody id="attendance-table-body">
                   <tr>
-                    <td colspan="10" class="text-center text-secondary py-5">
+                    <td colspan="11" class="text-center text-secondary py-5">
                       <div class="spinner-border spinner-border-sm text-primary me-2"></div>
                       Compiling corporate database records...
                     </td>
@@ -307,24 +300,24 @@
               <h4 class="h5 text-success mb-0 fw-bold font-monospace">AGGREGATED METRICS PER EMPLOYEE</h4>
             </div>
             
-            <div class="table-responsive rounded border overflow-hidden shadow-sm">
-              <table class="table table-bordered table-striped table-hover align-middle mb-0 custom-table">
+            <div class="table-responsive rounded border overflow-hidden shadow-sm bg-white mt-3">
+              <table class="table table-bordered table-striped table-hover align-middle mb-0 custom-table" style="min-width: 1050px; table-layout: fixed;">
                 <thead class="table-light">
                   <tr>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small">Employee ID</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small">Employee Name</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Total Attendance Days</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Average Work Hours</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Late Arrival Count</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Early Departure Count</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Compliant Days</th>
-                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Compliance Percentage</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" style="width: 130px;">Employee ID</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small" style="width: 220px;">Employee Name</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center" style="width: 120px;">Total Days</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center text-warning" style="width: 140px;">Late Arrival</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center text-danger" style="width: 120px;">Early Exit</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center" style="width: 280px;">Net Shift Duration (Worked / Expected)</th>
+                    <th scope="col" class="text-secondary fw-semibold font-monospace small text-center" style="width: 160px;">Compliance Score</th>
                   </tr>
                 </thead>
-                <tbody id="employee-summary-body">
+                <tbody id="employee-summary-body" class="font-monospace">
                   <tr>
-                    <td colspan="8" class="text-center text-secondary py-5">
-                      No summary data aggregated yet.
+                    <td colspan="7" class="text-center text-secondary py-5">
+                      <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                      Compiling aggregated performance metrics parameters...
                     </td>
                   </tr>
                 </tbody>

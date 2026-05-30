@@ -6,9 +6,9 @@ const { Readable } = require('stream');
 const { sql, poolPromise } = require('../config/db');
 
 const INTERNAL_FACILITIES = [
-    'SERVER ROOM-IN', 'SERVER ROOM-OUT', 
-    'STORE ROOM-IN', 'HUB ROOM-IN', 'HUB ROOM-OUT',
-    'Q2-ELECTRICAL ROOM-IN', 'Q3 ELE ROOM-IN'
+  'SERVER ROOM-IN', 'SERVER ROOM-OUT', 
+  'STORE ROOM-IN', 'HUB ROOM-IN', 'HUB ROOM-OUT',
+  'Q2-ELECTRICAL ROOM-IN', 'Q3 ELE ROOM-IN'
 ];
 
 // Helper: Format Date object to HH:MM AM/PM string
@@ -144,13 +144,35 @@ function getVal(row, key) {
   return undefined;
 }
 
+// Fuzzy String Normalization Helper - Now strips system "NULL" text strings cleanly
+function normalizeBiometricName(nameStr) {
+  if (!nameStr) return '';
+  
+  let clean = nameStr.trim();
+  
+  // Remove stringified "NULL" text markers leaking from biometric hardware logs
+  clean = clean.replace(/^null\s+/i, ''); // Strips "NULL " from the start
+  clean = clean.replace(/\s+null$/i, ''); // Strips " NULL" from the end
+  clean = clean.replace(/\(.*?\)/g, '');  // Remove parenthesized content
+  clean = clean.replace(/\d+/g, '');     // Remove numeric characters
+  
+  // Remove symbols and punctuation
+  clean = clean.replace(/[.,\/#!$%\^&\*;:{}=\-_`~?]/g, ' ');
+  // Collapse duplicate whitespace and trim
+  clean = clean.replace(/\s+/g, ' ').trim();
+  
+  const words = clean.split(' ').filter(w => w.length > 1);
+  return words.join(' ');
+}
+
 // Unified streaming and native bulk copy processor supporting Master Roster and Biometric Logs
 async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType = 'attendance') {
   const pool = await poolPromise;
   
-  // 0. Self-healing check: Ensure EmpType column exists in the database
+  // 0. Self-healing check: Ensure columns and tables are configured to support unauthorized entries
   try {
     await pool.request().query(`
+      -- Ensure EmpType exists on Users table
       IF NOT EXISTS (
         SELECT * FROM sys.columns 
         WHERE object_id = OBJECT_ID('dbo.Users') AND name = 'EmpType'
@@ -158,9 +180,29 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
       BEGIN
         ALTER TABLE dbo.Users ADD EmpType NVARCHAR(50);
       END
+
+      -- Ensure Status column exists on AttendanceLogs table to audit unauthorized punches
+      IF NOT EXISTS (
+        SELECT * FROM sys.columns 
+        WHERE object_id = OBJECT_ID('dbo.AttendanceLogs') AND name = 'Status'
+      )
+      BEGIN
+        ALTER TABLE dbo.AttendanceLogs ADD Status NVARCHAR(50);
+      END
+
+      -- Dynamically drop foreign key constraint on AttendanceLogs referencing Users to allow unmapped/unauthorized entries
+      DECLARE @Sql NVARCHAR(MAX);
+      SELECT @Sql = 'ALTER TABLE dbo.AttendanceLogs DROP CONSTRAINT ' + name
+      FROM sys.foreign_keys
+      WHERE parent_object_id = OBJECT_ID('dbo.AttendanceLogs')
+        AND referenced_object_id = OBJECT_ID('dbo.Users');
+      IF @Sql IS NOT NULL
+      BEGIN
+          EXEC sp_executesql @Sql;
+      END
     `);
   } catch (err) {
-    console.warn("Failed to check or alter Users table for EmpType:", err.message);
+    console.warn("Failed self-healing database checks:", err.message);
   }
 
   // 1. Relational Cache Loading
@@ -171,10 +213,25 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
     deptCache.set(d.DepartmentName.toLowerCase().trim(), d.DepartmentID);
   });
 
-  const userResult = await pool.request().query('SELECT EmployeeNo, DepartmentID FROM Users');
+  const userResult = await pool.request().query('SELECT EmployeeNo, FirstName, LastName, DepartmentID FROM Users');
   const userCache = new Set();
+  const nameCache = new Map();
   userResult.recordset.forEach(u => {
-    userCache.add(u.EmployeeNo.toUpperCase().trim());
+    const empNo = u.EmployeeNo.toUpperCase().trim();
+    userCache.add(empNo);
+    
+    const fName = String(u.FirstName || '').trim().toLowerCase().replace(/\s+/g, '');
+    const lName = String(u.LastName || '').trim().toLowerCase().replace(/\s+/g, '');
+    
+    // Store both fName + lName and lName + fName to handle reversed orders
+    if (fName && lName) {
+      nameCache.set(fName + lName, u.EmployeeNo);
+      nameCache.set(lName + fName, u.EmployeeNo);
+    } else if (fName) {
+      nameCache.set(fName, u.EmployeeNo);
+    } else if (lName) {
+      nameCache.set(lName, u.EmployeeNo);
+    }
   });
 
   // 2. Load rows dynamically based on file format
@@ -199,6 +256,7 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
   let skippedDuplicatesCount = 0;
   let autoProvisionedUsersCount = 0;
   let autoProvisionedDeptsCount = 0;
+  let unauthorizedCount = 0;
 
   if (uploadType === 'roster') {
     for (const row of rows) {
@@ -283,7 +341,7 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
                 EmpType = @EmpType
             WHERE EmployeeNo = @EmployeeNo
           `);
-        skippedDuplicatesCount++; // unchanged/updated profile profile
+        skippedDuplicatesCount++;
       } else {
         // Insert user fresh
         await pool.request()
@@ -297,9 +355,9 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
             VALUES (@EmployeeNo, @FirstName, @LastName, @DepartmentID, 'User', @EmpType, NULL, 1)
           `);
         userCache.add(cleanStaffNo);
-        autoProvisionedUsersCount++; // registered fresh profile count
+        autoProvisionedUsersCount++;
       }
-      importedRowsCount++; // synchronized profile profile count
+      importedRowsCount++;
     }
   } else {
     // Ingestion of Biometric Logs
@@ -308,13 +366,130 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
     bulkTable.columns.add('PunchDateTime', sql.DateTime, { nullable: false });
     bulkTable.columns.add('DeviceName', sql.NVarChar(100), { nullable: true });
     bulkTable.columns.add('AreaName', sql.NVarChar(100), { nullable: true });
+    bulkTable.columns.add('Status', sql.NVarChar(50), { nullable: true });
 
     for (const row of rows) {
-      const StaffNo = getVal(row, 'PersonNo') || getVal(row, 'EmployeeNo') || getVal(row, 'Person No') || getVal(row, 'Staff ID') || getVal(row, 'Staff No.') || getVal(row, 'Staff No') || getVal(row, 'StaffNo');
-      if (!StaffNo) continue;
+      const biometricStaffNo = getVal(row, 'PersonNo') || getVal(row, 'EmployeeNo') || getVal(row, 'Person No') || getVal(row, 'Staff ID') || getVal(row, 'Staff No.') || getVal(row, 'Staff No') || getVal(row, 'StaffNo');
       
-      const cleanStaffNo = String(StaffNo).trim().toUpperCase();
-      if (cleanStaffNo === '') continue;
+      let cleanStaffNo = '';
+      let isUnauthorized = false;
+      const rawStaffNoStr = String(biometricStaffNo || '').trim().toUpperCase();
+
+      // Check if rawStaffNoStr exists inside userCache and is NOT a dummy machine ID
+      if (rawStaffNoStr !== '' && rawStaffNoStr !== '16777985' && rawStaffNoStr !== '0' && rawStaffNoStr !== 'NULL') {
+        if (userCache.has(rawStaffNoStr)) {
+          cleanStaffNo = rawStaffNoStr;
+        } else {
+          // Reconstruct full name combining 'PersonFirstName' and 'PersonLastName' safely
+          const PersonFirstName = getVal(row, 'PersonFirstName') || getVal(row, 'Person First Name') || getVal(row, 'FirstName') || getVal(row, 'First Name') || '';
+          const PersonLastName = getVal(row, 'PersonLastName') || getVal(row, 'Person Last Name') || getVal(row, 'LastName') || getVal(row, 'Last Name') || '';
+          let rawName = `${PersonFirstName} ${PersonLastName}`.trim();
+          
+          // Try unified name fallback if combined name is blank
+          if (rawName === '') {
+            rawName = String(getVal(row, 'Name') || getVal(row, 'FullName') || getVal(row, 'Full Name') || '').trim();
+          }
+
+          let matchedID = null;
+          if (rawName !== '') {
+            const normalized = normalizeBiometricName(rawName);
+            const strippedUnified = normalized.toLowerCase().replace(/\s+/g, '');
+            matchedID = nameCache.get(strippedUnified);
+            
+            // Multi-Step Fallback Matching Logic
+            if (!matchedID) {
+              const words = normalized.split(' ').filter(w => w.length > 0);
+              if (words.length >= 2) {
+                const first = words[0].toLowerCase();
+                const second = words[1].toLowerCase();
+                const last = words[words.length - 1].toLowerCase();
+                
+                const keyFirstTwo = first + second;
+                const keyFirstTwoRev = second + first;
+                const keyFirstLast = first + last;
+                const keyFirstLastRev = last + first;
+                
+                matchedID = nameCache.get(keyFirstTwo) ||
+                            nameCache.get(keyFirstTwoRev) ||
+                            nameCache.get(keyFirstLast) ||
+                            nameCache.get(keyFirstLastRev);
+              }
+            }
+
+            // Loose containment override
+            if (!matchedID && PersonFirstName !== '') {
+              const cleanFirstName = String(PersonFirstName).toLowerCase().trim();
+              for (const [cacheKey, employeeNo] of nameCache.entries()) {
+                if (cacheKey.includes(cleanFirstName) && cleanFirstName.length > 2) {
+                  matchedID = employeeNo;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (matchedID && userCache.has(matchedID)) {
+            cleanStaffNo = matchedID;
+          } else {
+            // Employee ID not found in database. Do NOT auto-provision! Enforce secure logging of unauthorized punch
+            cleanStaffNo = rawStaffNoStr;
+            isUnauthorized = true;
+            unauthorizedCount++;
+          }
+        }
+      } else {
+        // ID is empty or dummy, check if name matches a user
+        const PersonFirstName = getVal(row, 'PersonFirstName') || getVal(row, 'Person First Name') || getVal(row, 'FirstName') || getVal(row, 'First Name') || '';
+        const PersonLastName = getVal(row, 'PersonLastName') || getVal(row, 'Person Last Name') || getVal(row, 'LastName') || getVal(row, 'Last Name') || '';
+        let rawName = `${PersonFirstName} ${PersonLastName}`.trim();
+        if (rawName === '') {
+          rawName = String(getVal(row, 'Name') || getVal(row, 'FullName') || getVal(row, 'Full Name') || '').trim();
+        }
+        
+        let matchedID = null;
+        if (rawName !== '') {
+          const normalized = normalizeBiometricName(rawName);
+          const strippedUnified = normalized.toLowerCase().replace(/\s+/g, '');
+          matchedID = nameCache.get(strippedUnified);
+          
+          if (!matchedID) {
+            const words = normalized.split(' ').filter(w => w.length > 0);
+            if (words.length >= 2) {
+              const first = words[0].toLowerCase();
+              const second = words[1].toLowerCase();
+              const last = words[words.length - 1].toLowerCase();
+              
+              const keyFirstTwo = first + second;
+              const keyFirstTwoRev = second + first;
+              const keyFirstLast = first + last;
+              const keyFirstLastRev = last + first;
+              
+              matchedID = nameCache.get(keyFirstTwo) ||
+                          nameCache.get(keyFirstTwoRev) ||
+                          nameCache.get(keyFirstLast) ||
+                          nameCache.get(keyFirstLastRev);
+            }
+          }
+          if (!matchedID && PersonFirstName !== '') {
+            const cleanFirstName = String(PersonFirstName).toLowerCase().trim();
+            for (const [cacheKey, employeeNo] of nameCache.entries()) {
+              if (cacheKey.includes(cleanFirstName) && cleanFirstName.length > 2) {
+                matchedID = employeeNo;
+                break;
+              }
+            }
+          }
+        }
+
+        if (matchedID && userCache.has(matchedID)) {
+          cleanStaffNo = matchedID;
+        } else {
+          // Employee not found in database. Set to 'NOT PROVIDED', flag as unauthorized, do NOT auto-provision!
+          cleanStaffNo = rawStaffNoStr || 'NOT PROVIDED';
+          isUnauthorized = true;
+          unauthorizedCount++;
+        }
+      }
 
       const DeviceName = String(getVal(row, 'DeviceName') || getVal(row, 'Device') || '').trim();
       if (INTERNAL_FACILITIES.includes(DeviceName)) {
@@ -336,14 +511,9 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
       }
       duplicateSet.add(dupKey);
 
-      // Relational User Integrity Check (No default provisioning falling back to IT)
-      if (!userCache.has(cleanStaffNo)) {
-        autoProvisionedUsersCount++; // Increment unknown records skipped count
-        continue;
-      }
-
-      // Add to bulk insert schema (LogID is omitted)
-      bulkTable.rows.add(cleanStaffNo, punchDateTime, DeviceName || null, AreaName || null);
+      // Add to bulk insert schema with status field containing secure audit label
+      const statusValue = isUnauthorized ? 'Unauthorized Entry' : null;
+      bulkTable.rows.add(cleanStaffNo, punchDateTime, DeviceName || null, AreaName || null, statusValue);
       importedRowsCount++;
     }
 
@@ -358,12 +528,12 @@ async function streamAndBulkInsertAttendanceLogs(buffer, extension, uploadType =
     }
   }
 
-
   return {
     importedRows: importedRowsCount,
     skippedDuplicates: skippedDuplicatesCount,
     autoProvisionedUsers: autoProvisionedUsersCount,
-    autoProvisionedDepartments: autoProvisionedDeptsCount
+    autoProvisionedDepartments: autoProvisionedDeptsCount,
+    unauthorizedRecords: unauthorizedCount
   };
 }
 
@@ -377,10 +547,11 @@ async function parseAndAggregateAttendance() {
       u.LastName,
       u.EmpType,
       d.DepartmentName AS Department,
-      a.PunchDateTime
+      a.PunchDateTime,
+      a.Status AS LogStatus
     FROM AttendanceLogs a
-    INNER JOIN Users u ON a.EmployeeNo = u.EmployeeNo
-    INNER JOIN Departments d ON u.DepartmentID = d.DepartmentID
+    LEFT JOIN Users u ON a.EmployeeNo = u.EmployeeNo
+    LEFT JOIN Departments d ON u.DepartmentID = d.DepartmentID
     ORDER BY a.PunchDateTime ASC
   `);
 
@@ -388,10 +559,9 @@ async function parseAndAggregateAttendance() {
   const grouped = {};
 
   records.forEach(row => {
-    const empId = row.EmployeeID.trim();
+    const empId = row.EmployeeID ? row.EmployeeID.trim() : 'UNKNOWN';
     const punchDate = row.PunchDateTime;
     
-    // Format Date part as YYYY-MM-DD
     const yyyy = punchDate.getFullYear();
     const mm = String(punchDate.getMonth() + 1).padStart(2, '0');
     const dd = String(punchDate.getDate()).padStart(2, '0');
@@ -400,18 +570,24 @@ async function parseAndAggregateAttendance() {
     const groupKey = `${empId}_${datePart}`;
     
     if (!grouped[groupKey]) {
-      const fName = (!row.FirstName || String(row.FirstName).toUpperCase() === 'NULL') ? '' : row.FirstName;
-      const lName = (!row.LastName || String(row.LastName).toUpperCase() === 'NULL') ? '' : row.LastName;
-      const fullName = `${fName} ${lName}`.trim() || 'Standard Employee';
+      const fName = (!row.FirstName || String(row.FirstName).trim().toUpperCase() === 'NULL') ? '' : String(row.FirstName).trim();
+      const lName = (!row.LastName || String(row.LastName).trim().toUpperCase() === 'NULL') ? '' : String(row.LastName).trim();
+      
+      // Fallback name for unauthorized entries
+      let fullName = `${fName} ${lName}`.trim();
+      if (!fullName) {
+        fullName = row.LogStatus === 'Unauthorized Entry' ? 'Unauthorized Entry' : 'Unknown Employee';
+      }
 
       grouped[groupKey] = {
         EmployeeID: empId,
         FirstName: fName,
         LastName: lName,
         Name: fullName,
-        Department: row.Department.trim(),
-        EmpType: row.EmpType ? row.EmpType.trim() : 'N/A',
+        Department: row.Department ? String(row.Department).trim() : 'Unassigned',
+        EmpType: row.EmpType ? String(row.EmpType).trim() : 'N/A',
         Date: datePart,
+        LogStatus: row.LogStatus || null,
         punches: []
       };
     }
@@ -427,6 +603,11 @@ async function parseAndAggregateAttendance() {
     let totalHours = 0;
     let statusBadge = 'Compliant';
 
+    // If this group is flagged as Unauthorized Entry in DB, override the badge immediately!
+    if (group.LogStatus === 'Unauthorized Entry') {
+      statusBadge = 'Unauthorized Entry';
+    }
+
     const isSinglePunch = group.punches.length === 1 || group.punches[group.punches.length - 1].getTime() === firstIn.getTime();
 
     if (isSinglePunch) {
@@ -434,17 +615,19 @@ async function parseAndAggregateAttendance() {
       const punchHour = punchTime.getHours();
       
       if (punchHour < 13) {
-        // Before 1:00 PM -> Treat as FirstIn
         firstInDate = punchTime;
         lastOutDate = null;
         totalHours = 'Not Checked Out';
-        statusBadge = 'Early Departure'; // Missing check out
+        if (group.LogStatus !== 'Unauthorized Entry') {
+          statusBadge = 'Early Departure'; 
+        }
       } else {
-        // At or after 1:00 PM -> Treat as LastOut
         firstInDate = null;
         lastOutDate = punchTime;
         totalHours = 'Not Checked In';
-        statusBadge = 'Late Arrival'; // Missing check in
+        if (group.LogStatus !== 'Unauthorized Entry') {
+          statusBadge = 'Late Arrival'; 
+        }
       }
     } else {
       firstInDate = firstIn;
@@ -462,21 +645,23 @@ async function parseAndAggregateAttendance() {
       const arrivedLate = firstInMins > 540;
       const leftEarly = lastOutMins < 1080;
 
-      if (totalHours > 9.0) {
-        statusBadge = 'Overtime';
-      } else if (arrivedLate && leftEarly) {
-        statusBadge = 'Late & Early';
-      } else if (arrivedLate) {
-        statusBadge = 'Late Arrival';
-      } else if (leftEarly) {
-        statusBadge = 'Early Departure';
+      if (group.LogStatus !== 'Unauthorized Entry') {
+        if (totalHours > 9.0) {
+          statusBadge = 'Overtime';
+        } else if (arrivedLate && leftEarly) {
+          statusBadge = 'Late & Early';
+        } else if (arrivedLate) {
+          statusBadge = 'Late Arrival';
+        } else if (leftEarly) {
+          statusBadge = 'Early Departure';
+        }
       }
     }
 
     const yyyy = firstIn.getFullYear();
     const mm = String(firstIn.getMonth() + 1).padStart(2, '0');
     const dd = String(firstIn.getDate()).padStart(2, '0');
-    const formattedDate = `${dd}-${mm}-${yyyy}`; // DD-MM-YYYY format for front-end
+    const formattedDate = `${dd}-${mm}-${yyyy}`; 
 
     const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const weekday = weekdays[firstIn.getDay()];
@@ -489,7 +674,7 @@ async function parseAndAggregateAttendance() {
       Department: group.Department,
       EmpType: group.EmpType,
       Date: formattedDate,
-      rawDate: group.Date, // YYYY-MM-DD format for filters
+      rawDate: group.Date, 
       Weekday: weekday,
       FirstIn: firstInDate ? formatAMPM(firstInDate) : null,
       LastOut: lastOutDate ? formatAMPM(lastOutDate) : null,
@@ -516,16 +701,16 @@ function filterAttendanceData(data, filters) {
     filtered = filtered.filter(item => item.rawDate <= toDate);
   }
   if (department && department !== 'All') {
-    filtered = filtered.filter(item => item.Department.toLowerCase() === department.toLowerCase());
+    filtered = filtered.filter(item => (item.Department || '').trim().toLowerCase() === department.trim().toLowerCase());
   }
   if (status && status !== 'All') {
-    filtered = filtered.filter(item => item.Status.toLowerCase() === status.toLowerCase());
+    filtered = filtered.filter(item => (item.Status || '').trim().toLowerCase() === status.trim().toLowerCase());
   }
   if (search && search.trim() !== '') {
     const searchLower = search.toLowerCase().trim();
     filtered = filtered.filter(item => 
-      item.Name.toLowerCase().includes(searchLower) || 
-      item.EmployeeID.toLowerCase().includes(searchLower)
+      (item.Name || '').toLowerCase().includes(searchLower) || 
+      (item.EmployeeID || '').toLowerCase().includes(searchLower)
     );
   }
   return filtered;

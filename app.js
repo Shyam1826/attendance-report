@@ -1,9 +1,12 @@
+process.env.TZ = 'Asia/Kolkata'; // 🟢 Sets the runtime process timezone to IST locally
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
+
+// Single dynamic port definition for IIS / local fallback
 const PORT = process.env.PORT || 3000;
 
 // Modular configuration imports
@@ -17,7 +20,6 @@ const authRouter = require('./routes/auth');
 const attendanceRouter = require('./routes/attendance');
 const exportRouter = require('./routes/export');
 const usersRouter = require('./routes/users');
-
 
 // Core express configs
 app.use(express.json());
@@ -46,13 +48,20 @@ app.get('/api/session', (req, res) => {
   }
 });
 
-// Serve root redirect
+
+// Serve root redirect and pull login directly from the views folder
 app.get('/', (req, res) => {
   if (req.session.user) {
     res.redirect('/dashboard');
   } else {
-    res.redirect('/login');
+    // Send the physical login.html file straight from your views folder
+    res.sendFile(path.join(__dirname, 'views', 'login.html'));
   }
+});
+
+// Graceful legacy catch-all URL redirect for manual uploads
+app.all(['/upload', '/api/upload'], (req, res) => {
+  res.redirect('/dashboard');
 });
 
 // Mount modular routing layers
@@ -61,8 +70,7 @@ app.use(attendanceRouter);
 app.use(exportRouter);
 app.use(usersRouter);
 
-
-// Start server
+// Start server exactly ONCE at the very bottom
 app.listen(PORT, () => {
-  console.log(`Project Antigravity Server is running at http://localhost:${PORT}`);
+  console.log(`Server successfully launched. Active deployment listening on port: ${PORT}`);
 });

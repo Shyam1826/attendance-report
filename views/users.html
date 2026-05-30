@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +10,9 @@
   <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
   <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <!-- Custom Styles -->
   <link rel="stylesheet" href="/css/style.css">
   <style>
@@ -18,8 +21,19 @@
       flex-direction: column;
       min-height: 100vh;
     }
+
+    /* 🔴 CRITICAL FORCE: This disables custom select element rendering hacks globally */
+    .force-standard-select {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      -webkit-appearance: select !important;
+      -moz-appearance: select !important;
+      appearance: select !important;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- Navigation Header Bar -->
@@ -42,9 +56,6 @@
         <a href="/dashboard" class="btn btn-outline-dark btn-sm px-3 d-flex align-items-center gap-2">
           <i class="bi bi-arrow-left"></i> Dashboard
         </a>
-        <a href="/upload" class="btn btn-outline-primary btn-sm px-3 d-flex align-items-center gap-2">
-          <i class="bi bi-cloud-arrow-up-fill"></i> Upload Logs
-        </a>
         <a href="/logout" class="btn btn-outline-danger btn-sm px-3 d-flex align-items-center gap-2">
           <i class="bi bi-box-arrow-left"></i> Logout
         </a>
@@ -53,21 +64,24 @@
   </nav>
 
   <!-- Notification Container -->
-  <div id="notification-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1080; display: flex; flex-direction: column; gap: 10px;"></div>
+  <div id="notification-container" class="position-fixed top-0 end-0 p-3"
+    style="z-index: 1080; display: flex; flex-direction: column; gap: 10px;"></div>
 
   <div class="container-fluid px-4 py-2">
     <!-- Main Employees Roster Card -->
     <div class="glass-panel p-4 mb-4 shadow-sm border border-secondary border-opacity-10">
-      
+
       <!-- Panel Header -->
       <div class="d-flex flex-wrap align-items-center justify-content-between pb-3 border-bottom mb-4 gap-3">
         <div>
           <span class="text-secondary small font-monospace text-uppercase">// CORPORATE ROSTER PORTAL</span>
           <h1 class="h2 headline-text mb-0 fw-bold text-primary">Employee Management</h1>
         </div>
-        
+
         <!-- Add New Employee Button -->
-        <button class="btn btn-primary bg-gradient d-flex align-items-center gap-2 px-4 py-2 shadow-sm font-monospace fw-semibold" onclick="openCreateModal()">
+        <button
+          class="btn btn-primary bg-gradient d-flex align-items-center gap-2 px-4 py-2 shadow-sm font-monospace fw-semibold"
+          onclick="openCreateModal()">
           <i class="bi bi-person-plus-fill"></i> Register New Hire
         </button>
       </div>
@@ -78,7 +92,8 @@
           <div class="col-md-9 col-12">
             <div class="input-group">
               <span class="input-group-text bg-light border text-secondary"><i class="bi bi-search"></i></span>
-              <input type="text" id="roster-search" class="form-control custom-input" placeholder="Search by name, role, department, or ADID/Employee ID..." oninput="filterRoster()">
+              <input type="text" id="roster-search" class="form-control custom-input"
+                placeholder="Search by name, role, department, or Employee ID..." oninput="filterRoster()">
             </div>
           </div>
           <div class="col-md-3 col-12">
@@ -96,13 +111,14 @@
         <table class="table table-bordered table-striped table-hover align-middle mb-0 custom-table">
           <thead class="table-light">
             <tr>
-              <th scope="col" class="text-secondary fw-semibold font-monospace small">ADID / ID</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small">Employee ID</th>
               <th scope="col" class="text-secondary fw-semibold font-monospace small">Employee Name</th>
               <th scope="col" class="text-secondary fw-semibold font-monospace small">Department</th>
               <th scope="col" class="text-secondary fw-semibold font-monospace small">Emp. Type</th>
               <th scope="col" class="text-secondary fw-semibold font-monospace small">Access Role</th>
               <th scope="col" class="text-secondary fw-semibold font-monospace small text-center">Status</th>
-              <th scope="col" class="text-secondary fw-semibold font-monospace small text-center" style="width: 200px;">Actions</th>
+              <th scope="col" class="text-secondary fw-semibold font-monospace small text-center" style="width: 200px;">
+                Actions</th>
             </tr>
           </thead>
           <tbody id="roster-table-body">
@@ -120,11 +136,13 @@
   </div>
 
   <!-- CREATE EMPLOYEE MODAL -->
-  <div class="modal fade" id="createEmployeeModal" tabindex="-1" aria-labelledby="createEmployeeModalLabel" aria-hidden="true">
+  <div class="modal fade" id="createEmployeeModal" tabindex="-1" aria-labelledby="createEmployeeModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border border-secondary border-opacity-20 shadow-lg bg-white text-dark">
         <div class="modal-header border-bottom">
-          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2" id="createEmployeeModalLabel">
+          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2"
+            id="createEmployeeModalLabel">
             <i class="bi bi-person-plus-fill"></i> Register New Hire
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -134,25 +152,29 @@
             <div id="create-error-box" class="alert alert-danger d-none py-2 px-3 small mb-3"></div>
 
             <div class="mb-3">
-              <label for="create-employee-no" class="form-label text-secondary small font-monospace">Employee ID / ADID</label>
-              <input type="text" id="create-employee-no" class="form-control custom-input text-uppercase font-monospace" placeholder="e.g. EMP1001" required>
+              <label for="create-employee-no" class="form-label text-secondary small font-monospace">Employee ID /
+                ADID</label>
+              <input type="text" id="create-employee-no" class="form-control custom-input text-uppercase font-monospace"
+                required>
             </div>
-            
+
             <div class="row g-2 mb-3">
               <div class="col-6">
                 <label for="create-first-name" class="form-label text-secondary small font-monospace">First Name</label>
-                <input type="text" id="create-first-name" class="form-control custom-input" placeholder="e.g. Jane" required>
+                <input type="text" id="create-first-name" class="form-control custom-input" required>
               </div>
               <div class="col-6">
                 <label for="create-last-name" class="form-label text-secondary small font-monospace">Last Name</label>
-                <input type="text" id="create-last-name" class="form-control custom-input" placeholder="e.g. Doe" required>
+                <input type="text" id="create-last-name" class="form-control custom-input" required>
               </div>
             </div>
 
+            <!-- 🔴 FIXED SELECT: Completely pristine browser fallback select block to kill textboxes -->
             <div class="mb-3">
-              <label for="create-department" class="form-label text-secondary small font-monospace">Department Mapping</label>
-              <select id="create-department" class="form-select custom-input" required>
-                <!-- Populated dynamically -->
+              <label for="create-department" class="form-label text-secondary small font-monospace">Department
+                Mapping</label>
+              <select id="create-department" class="form-select force-standard-select" required>
+                <!-- Populated dynamically via live loadData() query execution -->
               </select>
             </div>
 
@@ -165,14 +187,19 @@
             </div>
 
             <div class="mb-2">
-              <label for="create-password" class="form-label text-secondary small font-monospace">Starting Password</label>
-              <input type="password" id="create-password" class="form-control custom-input font-monospace" placeholder="Password for SSMS validation" required>
-              <span class="text-secondary small mt-1 d-block" style="font-size: 0.72rem;">The password will be securely hashed with 10-rounds bcrypt before storing.</span>
+              <label for="create-password" class="form-label text-secondary small font-monospace">Starting
+                Password</label>
+              <input type="password" id="create-password" class="form-control custom-input font-monospace"
+                placeholder="Starting key string" required>
+              <span class="text-secondary small mt-1 d-block" style="font-size: 0.72rem;">The password will be securely
+                hashed with 10-rounds bcrypt before storing.</span>
             </div>
           </div>
           <div class="modal-footer border-top bg-light">
-            <button type="button" class="btn btn-secondary btn-sm font-monospace py-2" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary bg-gradient btn-sm font-monospace py-2 px-4">Register Employee</button>
+            <button type="button" class="btn btn-secondary btn-sm font-monospace py-2"
+              data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary bg-gradient btn-sm font-monospace py-2 px-4">Register
+              Employee</button>
           </div>
         </form>
       </div>
@@ -180,11 +207,13 @@
   </div>
 
   <!-- EDIT / UPDATE EMPLOYEE MODAL -->
-  <div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel" aria-hidden="true">
+  <div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border border-secondary border-opacity-20 shadow-lg bg-white text-dark">
         <div class="modal-header border-bottom">
-          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2" id="editEmployeeModalLabel">
+          <h5 class="modal-title fw-bold text-primary font-monospace d-flex align-items-center gap-2"
+            id="editEmployeeModalLabel">
             <i class="bi bi-pencil-square text-success"></i> Edit Employee Profile
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -196,9 +225,10 @@
 
             <div class="mb-3">
               <label class="form-label text-secondary small font-monospace">Employee ID / ADID</label>
-              <input type="text" id="edit-employee-no" class="form-control custom-input text-uppercase font-monospace bg-light" disabled>
+              <input type="text" id="edit-employee-no"
+                class="form-control custom-input text-uppercase font-monospace bg-light" disabled>
             </div>
-            
+
             <div class="row g-2 mb-3">
               <div class="col-6">
                 <label for="edit-first-name" class="form-label text-secondary small font-monospace">First Name</label>
@@ -211,8 +241,9 @@
             </div>
 
             <div class="mb-3">
-              <label for="edit-department" class="form-label text-secondary small font-monospace">Department Mapping</label>
-              <select id="edit-department" class="form-select custom-input" required>
+              <label for="edit-department" class="form-label text-secondary small font-monospace">Department
+                Mapping</label>
+              <select id="edit-department" class="form-select force-standard-select" required>
                 <!-- Populated dynamically -->
               </select>
             </div>
@@ -226,14 +257,17 @@
             </div>
 
             <div class="mb-2">
-              <label for="edit-password" class="form-label text-secondary small font-monospace">Reset Password (Optional)</label>
-              <input type="password" id="edit-password" class="form-control custom-input font-monospace" placeholder="Leave empty to keep current password">
-              <span class="text-secondary small mt-1 d-block" style="font-size: 0.72rem;">If entered, password will be securely updated and re-hashed.</span>
+              <label for="edit-password" class="form-label text-secondary small font-monospace">Reset Password
+                (Optional)</label>
+              <input type="password" id="edit-password" class="form-control custom-input font-monospace"
+                placeholder="Leave empty to keep current password">
             </div>
           </div>
           <div class="modal-footer border-top bg-light">
-            <button type="button" class="btn btn-secondary btn-sm font-monospace py-2" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success bg-gradient btn-sm font-monospace py-2 px-4">Update Profile</button>
+            <button type="button" class="btn btn-secondary btn-sm font-monospace py-2"
+              data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success bg-gradient btn-sm font-monospace py-2 px-4">Update
+              Profile</button>
           </div>
         </form>
       </div>
@@ -265,33 +299,47 @@
       }
     }
 
-    // Load roster and departments dropdowns
+    // 🟢 UPDATED PIPELINE PARSER: Forces options loop array compilation straight from /api/departments
     async function loadData() {
       try {
-        // Load Departments
+        // Load Master Departments List Natively
         const deptRes = await fetch('/api/departments');
         departments = await deptRes.json();
-        
-        // Populate create / edit modals
+
         const createDeptSelect = document.getElementById('create-department');
         const editDeptSelect = document.getElementById('edit-department');
-        
+
+        // Clear out old placeholders completely to wipe out hidden plugin states
         createDeptSelect.innerHTML = '<option value="" disabled selected>Select Department...</option>';
         editDeptSelect.innerHTML = '';
-        
+
         departments.forEach(d => {
-          const opt = `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`;
-          createDeptSelect.innerHTML += opt;
-          editDeptSelect.innerHTML += opt;
+          const opt = document.createElement('option');
+          opt.value = d.DepartmentID;
+          opt.textContent = d.DepartmentName;
+
+          createDeptSelect.appendChild(opt.cloneNode(true));
+          editDeptSelect.appendChild(opt);
         });
 
-        // Load Users Roster
+        // Load users from our clean SQL endpoint
         const rosterRes = await fetch('/api/users');
-        roster = await rosterRes.json();
-        
+        const usersArray = await rosterRes.json();
+
+        roster = usersArray.map(user => ({
+          EmployeeNo: user.EmployeeNo,
+          FirstName: user.FirstName || '',
+          LastName: user.LastName || '',
+          DepartmentID: user.DepartmentID,
+          DepartmentName: user.DepartmentName || 'Unassigned',
+          EmpType: user.EmpType || 'Regular',
+          Role: user.Role || 'User',
+          IsActive: user.IsActive === true || user.IsActive === 1
+        }));
+
         filterRoster();
       } catch (err) {
-        console.error('Failed to load roster:', err);
+        console.error('Failed to load roster rows from pipeline:', err);
         showNotification('Failed to connect to database roster.', 'danger');
       }
     }
@@ -302,33 +350,27 @@
       loadData();
     });
 
-    // Frontend Filtering Engine
     function filterRoster() {
       const query = document.getElementById('roster-search').value.toLowerCase().trim();
       const statusFilter = document.getElementById('roster-status-filter').value;
-      
+
       filteredRoster = roster.filter(user => {
-        // Status filter
         if (statusFilter === 'Active' && !user.IsActive) return false;
         if (statusFilter === 'Inactive' && user.IsActive) return false;
 
-        // Search text filter
         if (query !== '') {
           const fullName = `${user.FirstName || ''} ${user.LastName || ''}`.toLowerCase();
           const matchNo = String(user.EmployeeNo).toLowerCase().includes(query);
           const matchName = fullName.includes(query);
-          const matchRole = String(user.Role).toLowerCase().includes(query);
           const matchDept = String(user.DepartmentName).toLowerCase().includes(query);
-          return matchNo || matchName || matchRole || matchDept;
+          return matchNo || matchName || matchDept;
         }
-
         return true;
       });
 
       renderRosterTable();
     }
 
-    // Roster grid rendering
     function renderRosterTable() {
       const tbody = document.getElementById('roster-table-body');
       tbody.innerHTML = '';
@@ -347,13 +389,11 @@
 
       filteredRoster.forEach(row => {
         const tr = document.createElement('tr');
-        
-        // Active status styling
-        const statusBadge = row.IsActive 
+
+        const statusBadge = row.IsActive
           ? `<span class="badge bg-success bg-gradient px-3 py-1 font-monospace" style="font-size: 0.72rem;">ACTIVE</span>`
           : `<span class="badge bg-danger bg-gradient px-3 py-1 font-monospace" style="font-size: 0.72rem;">DEACTIVATED</span>`;
-        
-        // Toggle action details (soft delete)
+
         const toggleBtn = row.IsActive
           ? `<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 font-monospace" onclick="toggleEmployeeStatus('${row.EmployeeNo}', false)">
                <i class="bi bi-person-x-fill"></i> Deactivate
@@ -364,20 +404,18 @@
 
         tr.innerHTML = `
           <td class="font-monospace fw-bold text-primary">${row.EmployeeNo}</td>
-          <td>
-            <div class="fw-semibold text-dark">${row.FirstName} ${row.LastName}</div>
-          </td>
+          <td><div class="fw-semibold text-dark">${row.FirstName} ${row.LastName}</div></td>
           <td><span class="text-secondary">${row.DepartmentName || 'N/A'}</span></td>
-          <td><span class="text-secondary fw-medium">${row.EmpType || 'N/A'}</span></td>
+          <td><span class="text-secondary fw-medium">${row.EmpType}</span></td>
           <td>
-            <span class="badge ${row.Role === 'Admin' ? 'bg-primary bg-opacity-10 text-primary' : 'bg-secondary bg-opacity-10 text-secondary'} font-monospace px-2 py-1">
+            <span class="badge bg-secondary bg-opacity-10 text-secondary font-monospace px-2 py-1">
               ${row.Role.toUpperCase()}
             </span>
           </td>
           <td class="text-center">${statusBadge}</td>
           <td class="text-center">
             <div class="d-flex align-items-center justify-content-center gap-2">
-              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 font-monospace" onclick="openEditModal('${row.EmployeeNo}', '${row.FirstName}', '${row.LastName}', ${row.DepartmentID}, '${row.Role}')">
+              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 font-monospace" onclick="openEditModal('${row.EmployeeNo}', '${row.FirstName.replace(/'/g, "\\'")}', '${row.LastName.replace(/'/g, "\\'")}', ${row.DepartmentID}, '${row.Role}')">
                 <i class="bi bi-pencil-square"></i> Edit
               </button>
               ${toggleBtn}
@@ -388,19 +426,16 @@
       });
     }
 
-    // Modal Create Open Trigger
     function openCreateModal() {
       document.getElementById('create-employee-form').reset();
       document.getElementById('create-error-box').classList.add('d-none');
-      
       const modal = new bootstrap.Modal(document.getElementById('createEmployeeModal'));
       modal.show();
     }
 
-    // Form Submit CREATE manual register
     document.getElementById('create-employee-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const employeeNo = document.getElementById('create-employee-no').value;
       const firstName = document.getElementById('create-first-name').value;
       const lastName = document.getElementById('create-last-name').value;
@@ -414,9 +449,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ employeeNo, firstName, lastName, departmentId, role, password })
         });
-
         const data = await res.json();
-        
+
         if (res.ok && data.success) {
           bootstrap.Modal.getInstance(document.getElementById('createEmployeeModal')).hide();
           showNotification(data.message, 'success');
@@ -425,15 +459,14 @@
           showModalError('create-error-box', data.error || 'Failed to register employee.');
         }
       } catch (err) {
-        showModalError('create-error-box', 'Network communication failure during manual register.');
+        showModalError('create-error-box', 'Network communication failure.');
       }
     });
 
-    // Modal Edit Open Trigger
     function openEditModal(empNo, first, last, deptId, role) {
       document.getElementById('edit-employee-form').reset();
       document.getElementById('edit-error-box').classList.add('d-none');
-      
+
       document.getElementById('edit-original-employee-no').value = empNo;
       document.getElementById('edit-employee-no').value = empNo;
       document.getElementById('edit-first-name').value = first;
@@ -445,10 +478,9 @@
       modal.show();
     }
 
-    // Form Submit UPDATE edit details
     document.getElementById('edit-employee-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const originalEmpNo = document.getElementById('edit-original-employee-no').value;
       const firstName = document.getElementById('edit-first-name').value;
       const lastName = document.getElementById('edit-last-name').value;
@@ -457,9 +489,7 @@
       const password = document.getElementById('edit-password').value;
 
       const payload = { firstName, lastName, departmentId, role };
-      if (password && password.trim() !== '') {
-        payload.password = password;
-      }
+      if (password && password.trim() !== '') payload.password = password;
 
       try {
         const res = await fetch(`/api/users/${originalEmpNo}`, {
@@ -467,9 +497,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         const data = await res.json();
-        
+
         if (res.ok && data.success) {
           bootstrap.Modal.getInstance(document.getElementById('editEmployeeModal')).hide();
           showNotification(data.message, 'success');
@@ -478,16 +507,13 @@
           showModalError('edit-error-box', data.error || 'Failed to update employee.');
         }
       } catch (err) {
-        showModalError('edit-error-box', 'Network communication failure during profile update.');
+        showModalError('edit-error-box', 'Network communication failure.');
       }
     });
 
-    // Soft-Delete Toggle Actions
     async function toggleEmployeeStatus(empNo, targetActiveStatus) {
       const alertLabel = targetActiveStatus ? 'reactivate' : 'deactivate';
-      if (!confirm(`Are you absolutely sure you want to ${alertLabel} employee profile ${empNo}? (Historical punch records are kept in database audits)`)) {
-        return;
-      }
+      if (!confirm(`Are you sure you want to ${alertLabel} profile ${empNo}?`)) return;
 
       try {
         const res = await fetch(`/api/users/${empNo}`, {
@@ -495,32 +521,30 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive: targetActiveStatus })
         });
-
         const data = await res.json();
-        
+
         if (res.ok && data.success) {
           showNotification(data.message, 'success');
           loadData();
         } else {
-          showNotification(data.error || 'Failed to toggle employee status.', 'danger');
+          showNotification(data.error || 'Failed to toggle status.', 'danger');
         }
       } catch (err) {
-        showNotification('Network communication failure during status deactivation.', 'danger');
+        showNotification('Network communication failure.', 'danger');
       }
     }
 
-    // Floating Notification Alert Utilities
     function showNotification(msg, type) {
       const container = document.getElementById('notification-container');
       if (!container) return;
-      
+
       const alertEl = document.createElement('div');
       alertEl.className = `alert alert-glass${type === 'success' ? '-success' : ''} shadow border-secondary border-opacity-10 py-2 px-3 m-0 d-flex align-items-center gap-2 text-dark font-monospace`;
       alertEl.innerHTML = `
         <i class="bi ${type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-triangle-fill text-danger'}"></i>
         <span>${msg}</span>
       `;
-      
+
       container.appendChild(alertEl);
       setTimeout(() => {
         alertEl.classList.add('fade');
@@ -528,7 +552,6 @@
       }, 3000);
     }
 
-    // Modal specific inline alert handler
     function showModalError(boxId, msg) {
       const errBox = document.getElementById(boxId);
       errBox.textContent = msg;
@@ -536,4 +559,5 @@
     }
   </script>
 </body>
+
 </html>

@@ -5,6 +5,26 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const { sql, poolPromise } = require('../config/db');
 
+// Localized date-helper utility for Asia/Kolkata timezone with 24-hour formatting
+function getKolkataTimestamp() {
+  const date = new Date();
+  const rawLocale = date.toLocaleString('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false
+  });
+  
+  try {
+    const [datePart, timePart] = rawLocale.split(', ');
+    const [m, d, y] = datePart.split('/');
+    const mm = String(m).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    return `${y}-${mm}-${dd} ${timePart}`;
+  } catch (err) {
+    // Graceful fallback to ISO timestamp if formatting fails
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  }
+}
+
 // Helper to log user session events to data/session-audit.log
 function logSessionEvent(action, employeeId, fullName, role, status = null) {
   try {
@@ -13,7 +33,7 @@ function logSessionEvent(action, employeeId, fullName, role, status = null) {
       fs.mkdirSync(logDir, { recursive: true });
     }
     const logPath = path.join(logDir, 'session-audit.log');
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getKolkataTimestamp();
     
     let logLine = `[${timestamp}] ACTION: ${action} | User ID: ${employeeId} | Name: ${fullName} | Role: ${role}`;
     if (status) {

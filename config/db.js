@@ -19,9 +19,12 @@ const dbConfig = {
   server: serverHost,
   database: process.env.DB_NAME,
   options: {
-    encrypt: false, // Set to false for local development to keep it straightforward
-    trustServerCertificate: true, // True allows connecting to SQLEXPRESS without local certificate errors
-    enableArithAbort: true
+    // 🟢 SECURE ENVIRONMENT UPDATE: Enable encryption for security data paths
+    encrypt: true, 
+    // 🟢 CRITICAL LOCAL FALLBACK: Keeps connections active over self-signed local certs
+    trustServerCertificate: true, 
+    enableArithAbort: true,
+    useUTC: false
   },
   pool: {
     max: 10,
@@ -38,19 +41,17 @@ if (instanceName) {
   dbConfig.port = parseInt(process.env.DB_PORT || '1433', 10);
 }
 
-
-
-console.log(`Initializing MSSQL pool to server: ${dbConfig.server}, database: ${dbConfig.database}, instance: ${dbConfig.options.instanceName || 'default'}...`);
+console.log(`Initializing Secure MSSQL pool to server: ${dbConfig.server}, database: ${dbConfig.database}, instance: ${dbConfig.options.instanceName || 'default'}...`);
 
 const connectWithRetry = async () => {
   try {
     const pool = new sql.ConnectionPool(dbConfig);
     await pool.connect();
-    console.log('✅ Successfully connected to MSSQL Connection Pool.');
+    console.log('✅ Successfully connected to Secure MSSQL Connection Pool.');
     return pool;
   } catch (err) {
     if (dbConfig.options && dbConfig.options.instanceName) {
-      console.warn(`⚠️ Named instance connection failed: ${err.message}. Retrying via default port 1433...`);
+      console.warn(`⚠️ Secure named instance connection failed: ${err.message}. Retrying via encrypted default port 1433...`);
       const fallbackConfig = { ...dbConfig };
       fallbackConfig.options = { ...dbConfig.options };
       delete fallbackConfig.options.instanceName;
@@ -58,16 +59,15 @@ const connectWithRetry = async () => {
       
       const pool = new sql.ConnectionPool(fallbackConfig);
       await pool.connect();
-      console.log('✅ Successfully connected to MSSQL Connection Pool via fallback port 1433.');
+      console.log('✅ Successfully connected to Secure MSSQL Connection Pool via fallback port 1433.');
       return pool;
     }
-    console.error('❌ MSSQL Connection Pool Initialization Failed:', err.message);
+    console.error('❌ Secure MSSQL Connection Pool Initialization Failed:', err.message);
     throw err;
   }
 };
 
 const poolPromise = connectWithRetry();
-
 
 module.exports = {
   sql,

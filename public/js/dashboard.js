@@ -1,8 +1,7 @@
-// B2B Dashboard Controller - Project Antigravity
+// B2B Dashboard Controller - Project Antigravity Production Edition
 
 let lineChart = null;
 let doughnutChart = null;
-let allRecords = [];
 let currentRecords = [];
 let currentPage = 1;
 const rowsPerPage = 10;
@@ -13,7 +12,8 @@ let currentSortDir = 'asc';
 document.addEventListener('DOMContentLoaded', () => {
   loadSession();
   setupEventListeners();
-  fetchDashboardData();
+  fetchMasterDepartments(); 
+  fetchDashboardData();     
 });
 
 // Load Current User Session details
@@ -25,7 +25,6 @@ async function loadSession() {
       document.getElementById('user-profile-name').textContent = data.user.name;
       document.getElementById('user-profile-role').textContent = data.user.role;
       
-      // Admin privilege visibility guard
       if (data.user.role === 'Admin') {
         const adminLinks = document.querySelectorAll('.admin-only');
         adminLinks.forEach(link => link.classList.remove('d-none'));
@@ -38,33 +37,55 @@ async function loadSession() {
   }
 }
 
-// Add Event Listeners for filters and buttons
+async function fetchMasterDepartments() {
+  try {
+    const res = await fetch('/api/departments');
+    const departmentsList = await res.json();
+    
+    const dropdown = document.getElementById('filter-department');
+    dropdown.innerHTML = `<option value="">All Departments</option>`;
+    
+    departmentsList.forEach(dept => {
+      const option = document.createElement('option');
+      option.value = dept.DepartmentID; 
+      option.textContent = dept.DepartmentName;
+      dropdown.appendChild(option);
+    });
+  } catch (error) {
+    console.error('Error loading master departments list:', error);
+  }
+}
+
 function setupEventListeners() {
-  // Filter Inputs - hook up to frontend filtering engine directly
-  document.getElementById('filter-from-date').addEventListener('change', applyFrontendFilters);
-  document.getElementById('filter-to-date').addEventListener('change', applyFrontendFilters);
-  document.getElementById('filter-department').addEventListener('change', applyFrontendFilters);
-  document.getElementById('filter-status').addEventListener('change', applyFrontendFilters);
+  document.getElementById('filter-from-date').addEventListener('change', fetchDashboardData);
+  document.getElementById('filter-to-date').addEventListener('change', fetchDashboardData);
+  document.getElementById('filter-department').addEventListener('change', fetchDashboardData);
+  document.getElementById('filter-status').addEventListener('change', fetchDashboardData);
   
-  // Search Input with debounce
   let searchTimeout = null;
-  document.getElementById('filter-search').addEventListener('input', () => {
+  const triggerDebouncedSearch = () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
-      applyFrontendFilters();
+      fetchDashboardData();
     }, 300);
+  };
+
+  document.getElementById('filter-search').addEventListener('input', triggerDebouncedSearch);
+  document.getElementById('attendance-search').addEventListener('input', triggerDebouncedSearch);
+
+  document.getElementById('clear-filters-btn').addEventListener('click', () => {
+    document.getElementById('filter-from-date').value = '';
+    document.getElementById('filter-to-date').value = '';
+    document.getElementById('filter-department').value = '';
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-search').value = '';
+    document.getElementById('attendance-search').value = '';
+    fetchDashboardData();
   });
 
-  // Live attendance-search text input listener
-  document.getElementById('attendance-search').addEventListener('input', () => {
-    applyFrontendFilters();
-  });
-
-  // Action Buttons: Real Stream Exports
   document.getElementById('export-excel-btn').addEventListener('click', () => handleExport('excel'));
   document.getElementById('export-pdf-btn').addEventListener('click', () => handleExport('pdf'));
 
-  // Table Column Header Click Listeners for Sorting
   document.querySelectorAll('thead th[data-column]').forEach(th => {
     th.addEventListener('click', () => {
       const columnKey = th.getAttribute('data-column');
@@ -73,194 +94,53 @@ function setupEventListeners() {
   });
 }
 
-// Gather all filters from UI state
-function getFilters() {
-  return {
-    fromDate: document.getElementById('filter-from-date').value,
-    toDate: document.getElementById('filter-to-date').value,
-    department: document.getElementById('filter-department').value,
-    status: document.getElementById('filter-status').value,
-    search: document.getElementById('filter-search').value,
-    attendanceSearch: document.getElementById('attendance-search').value
-  };
+function getQueryParameters() {
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('filter-from-date').value;
+  const endDate = document.getElementById('filter-to-date').value;
+  const deptId = document.getElementById('filter-department').value;
+  const status = document.getElementById('filter-status').value;
+  const empId = document.getElementById('filter-search').value || document.getElementById('attendance-search').value;
+
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  if (deptId) params.append('departmentId', deptId);
+  if (status && status !== 'All') params.append('status', status);
+  if (empId) params.append('employeeId', empId.trim());
+
+  return params.toString();
 }
 
-// Fetch dynamic aggregated records from server API
 async function fetchDashboardData() {
   showLoader(true);
   try {
-    const response = await fetch('/api/attendance');
+    const queryString = getQueryParameters();
+    const response = await fetch(`/api/attendance?${queryString}`);
     const data = await response.json();
 
-    allRecords = data.records;
-    currentPage = 1; // Reset pagination page to 1 on load
+    currentRecords = data.records || [];
+    currentPage = 1; 
 
-    // Reset column sorting states
     currentSortCol = null;
     currentSortDir = 'asc';
     updateSortIndicators();
 
-    // Populate Filter options dynamically from the complete unfiltered list on initial load
-    const departmentsList = [...new Set(allRecords.map(item => item.Department))].sort();
-    const statusesList = [...new Set(allRecords.map(item => item.Status))].sort();
+    updateSummaryWidgets(currentRecords, data.doughnutChart || {});
+    renderTable(currentRecords);
+    
+    updateDashboardCharts(data.lineChart || [], data.doughnutChart || {});
 
-    const filters = getFilters();
-    updateDropdownOptions('filter-department', departmentsList, filters.department);
-    updateDropdownOptions('filter-status', statusesList, filters.status);
-
-    // Apply filters locally on the frontend and render all views
-    applyFrontendFilters();
+    calculateAndRenderSummary();
 
   } catch (error) {
-    console.error('Error fetching attendance logs:', error);
+    console.error('Production data fetch failed:', error);
   } finally {
     showLoader(false);
   }
 }
 
-// Update filter options dynamically
-function updateDropdownOptions(dropdownId, list, currentValue) {
-  const dropdown = document.getElementById(dropdownId);
-  const defaultText = dropdownId === 'filter-status' ? 'All Statuses' : 'All Departments';
-  dropdown.innerHTML = `<option value="All">${defaultText}</option>`;
-
-  list.forEach(item => {
-    const option = document.createElement('option');
-    option.value = item;
-    option.textContent = item;
-    if (item === currentValue) {
-      option.selected = true;
-    }
-    dropdown.appendChild(option);
-  });
-}
-
-// Frontend Filtering Engine
-function applyFrontendFilters() {
-  const filters = getFilters();
-  let filtered = [...allRecords];
-
-  // 1 & 2. Date Filter with explicit override rule
-  const fromDateValue = filters.fromDate || '';
-  const toDateValue = filters.toDate || '';
-
-  filtered = filtered.filter(record => {
-    let passFrom = fromDateValue === '' || record.rawDate >= fromDateValue;
-    let passTo = toDateValue === '' || record.rawDate <= toDateValue;
-    return passFrom && passTo;
-  });
-
-  // 3. Department Filter
-  if (filters.department && filters.department !== 'All') {
-    filtered = filtered.filter(row => row.Department.toLowerCase() === filters.department.toLowerCase());
-  }
-
-  // 4. Status Filter
-  if (filters.status && filters.status !== 'All') {
-    filtered = filtered.filter(row => row.Status.toLowerCase() === filters.status.toLowerCase());
-  }
-
-  // 5. Search Employee (Name or EmployeeID)
-  if (filters.search && filters.search.trim() !== '') {
-    const query = filters.search.toLowerCase().trim();
-    filtered = filtered.filter(row => 
-      row.Name.toLowerCase().includes(query) || 
-      row.EmployeeID.toLowerCase().includes(query)
-    );
-  }
-
-  // 6. Live Text Search Filter (Employee ID, First Name, Last Name, or Department)
-  if (filters.attendanceSearch && filters.attendanceSearch.trim() !== '') {
-    const query = filters.attendanceSearch.toLowerCase().trim();
-    filtered = filtered.filter(row => {
-      const matchID = String(row.EmployeeID).toLowerCase().includes(query);
-      const matchFirst = String(row.FirstName || '').toLowerCase().includes(query);
-      const matchLast = String(row.LastName || '').toLowerCase().includes(query);
-      const matchDept = String(row.Department || '').toLowerCase().includes(query);
-      return matchID || matchFirst || matchLast || matchDept;
-    });
-  }
-
-  currentRecords = filtered;
-  currentPage = 1; // Reset to page 1 on filter change
-
-  // Update live widgets
-  updateSummaryWidgets(currentRecords);
-
-  // Render main data grid table
-  renderTable(currentRecords);
-
-  // Update Analytics charts dynamically based on active filtered list
-  updateChartsDynamically(currentRecords);
-
-  // Update Employee Summary if active
-  const summaryTab = document.getElementById('summary-tab');
-  if (summaryTab.classList.contains('active')) {
-    calculateAndRenderSummary();
-  }
-}
-
-// Update charts dynamically from current records list
-function updateChartsDynamically(records) {
-  // 1. Line Chart: Daily Attendance Trend
-  const trendsByDay = {};
-  records.forEach(item => {
-    const day = item.Date; // DD-MM-YYYY
-    const rawDay = item.rawDate; // YYYY-MM-DD
-    if (!trendsByDay[day]) {
-      trendsByDay[day] = { rawDate: rawDay, totalHours: 0, count: 0, compliantCount: 0, lateCount: 0 };
-    }
-    
-    const parsedHours = parseFloat(item.TotalHours);
-    if (!isNaN(parsedHours)) {
-      trendsByDay[day].totalHours += parsedHours;
-      trendsByDay[day].count += 1;
-    }
-    
-    if (item.Status === 'Compliant' || item.Status === 'Overtime') {
-      trendsByDay[day].compliantCount += 1;
-    }
-    if (item.Status === 'Late Arrival' || item.Status === 'Late & Early') {
-      trendsByDay[day].lateCount += 1;
-    }
-  });
-
-  const lineChartData = Object.keys(trendsByDay)
-    .sort((a, b) => trendsByDay[a].rawDate.localeCompare(trendsByDay[b].rawDate))
-    .map(day => {
-      const dData = trendsByDay[day];
-      const avgHours = dData.count > 0 ? parseFloat((dData.totalHours / dData.count).toFixed(2)) : 0;
-      return {
-        date: day,
-        avgHours: avgHours,
-        compliantCount: dData.compliantCount,
-        lateCount: dData.lateCount
-      };
-    });
-
-  renderLineChart(lineChartData);
-
-  // 2. Doughnut Chart: Compliance Distribution
-  const statusDistribution = {
-    'Compliant': 0,
-    'Late Arrival': 0,
-    'Early Departure': 0,
-    'Late & Early': 0,
-    'Overtime': 0
-  };
-  records.forEach(item => {
-    if (statusDistribution[item.Status] !== undefined) {
-      statusDistribution[item.Status] += 1;
-    }
-  });
-
-  renderDoughnutChart(statusDistribution);
-}
-
-// Interactive Sorting Logic (Client-Side for maximum responsiveness)
 function handleSort(columnKey) {
   if (currentSortCol === columnKey) {
-    // Toggle direction
     currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
   } else {
     currentSortCol = columnKey;
@@ -268,26 +148,19 @@ function handleSort(columnKey) {
   }
 
   currentRecords.sort((a, b) => {
-    // Chronological date sort using the rawDate YYYY-MM-DD
     if (columnKey === 'Date') {
-      const strA = a.rawDate || '';
-      const strB = b.rawDate || '';
-      if (strA < strB) return currentSortDir === 'asc' ? -1 : 1;
-      if (strA > strB) return currentSortDir === 'asc' ? 1 : -1;
-      return 0;
+      return currentSortDir === 'asc' ? a.Date.localeCompare(b.Date) : b.Date.localeCompare(a.Date);
     }
 
     let valA = a[columnKey];
     let valB = b[columnKey];
 
-    // Numbers sort (Hours)
     if (columnKey === 'TotalHours') {
       const numA = parseFloat(valA) || 0;
       const numB = parseFloat(valB) || 0;
       return currentSortDir === 'asc' ? numA - numB : numB - numA;
     }
 
-    // Default String comparison
     const strA = String(valA).toLowerCase().trim();
     const strB = String(valB).toLowerCase().trim();
 
@@ -296,23 +169,18 @@ function handleSort(columnKey) {
     return 0;
   });
 
-  currentPage = 1; // Reset to page 1 on sort change
+  currentPage = 1; 
   renderTable(currentRecords);
   updateSortIndicators();
 }
 
-// Refreshes the B2B bootstrap icon sorting arrows
 function updateSortIndicators() {
   document.querySelectorAll('thead th[data-column]').forEach(th => {
     const columnKey = th.getAttribute('data-column');
-    
-    // Extract base column header text
     let baseText = '';
     const textNodes = th.childNodes;
     for (let i = 0; i < textNodes.length; i++) {
-      if (textNodes[i].nodeType === Node.TEXT_NODE) {
-        baseText += textNodes[i].textContent;
-      }
+      if (textNodes[i].nodeType === Node.TEXT_NODE) baseText += textNodes[i].textContent;
     }
     baseText = baseText.trim();
 
@@ -320,12 +188,52 @@ function updateSortIndicators() {
     if (currentSortCol === columnKey) {
       iconClass = currentSortDir === 'asc' ? 'bi-arrow-up-short text-primary opacity-100 fw-bold' : 'bi-arrow-down-short text-primary opacity-100 fw-bold';
     }
-
     th.innerHTML = `${baseText} <span class="ms-1"><i class="bi ${iconClass}"></i></span>`;
   });
 }
 
-// Render filtered aggregated records inside data grid (with client-side pagination)
+// 🟢 RECONFIGURED CLOCK-IN COLORS: Dynamic HR grace periods (9:10 AM is exactly Green)
+function getInTimeColor(timeStr) {
+  if (!timeStr || timeStr === '-' || timeStr.toLowerCase().includes('missing')) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return '';
+  
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  const totalMins = hours * 60 + minutes;
+
+  // 07:00 AM to 08:44 AM (420 to 524 minutes) -> text-primary
+  if (totalMins >= 420 && totalMins <= 524) return 'text-primary';
+  // 08:45 AM to 09:10 AM (525 to 550 minutes) -> text-success
+  if (totalMins >= 525 && totalMins <= 550) return 'text-success';
+  // 09:11 AM to 09:45 AM (551 to 585 minutes) -> text-warning
+  if (totalMins >= 551 && totalMins <= 585) return 'text-warning';
+  // 09:46 AM or later (>= 586 minutes) -> text-danger
+  if (totalMins >= 586) return 'text-danger';
+  return '';
+}
+
+// 🟢 RECONFIGURED CLOCK-OUT COLORS: Dynamic HR departure windows
+function getOutTimeColor(timeStr) {
+  if (!timeStr || timeStr === '-' || timeStr.toLowerCase().includes('missing')) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return '';
+  
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  const totalMins = hours * 60 + minutes;
+
+  // Before 05:45 PM (< 1065 minutes) -> text-danger
+  if (totalMins < 1065) return 'text-danger';
+  // 05:45 PM to 05:59 PM (1065 to 1079 minutes) -> text-warning
+  if (totalMins >= 1065 && totalMins <= 1079) return 'text-warning';
+  // 06:00 PM to 06:59 PM (1080 to 1139 minutes) -> text-success
+  if (totalMins >= 1080 && totalMins <= 1139) return 'text-success';
+  // 07:00 PM or later (>= 1140 minutes) -> text-primary
+  if (totalMins >= 1140) return 'text-primary';
+  return '';
+}
+
 function renderTable(records) {
   const tbody = document.getElementById('attendance-table-body');
   tbody.innerHTML = '';
@@ -334,9 +242,9 @@ function renderTable(records) {
   if (total === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" class="text-center text-muted py-4">
+        <td colspan="11" class="text-center text-muted py-4">
           <i class="bi bi-folder-x fs-2 d-block mb-2 text-secondary"></i>
-          No records match the active filters.
+          No records found inside production query logs.
         </td>
       </tr>
     `;
@@ -345,7 +253,6 @@ function renderTable(records) {
     return;
   }
 
-  // Slicing for client-side pagination
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = Math.min(startIndex + rowsPerPage, total);
   const pageRecords = records.slice(startIndex, endIndex);
@@ -353,51 +260,86 @@ function renderTable(records) {
   pageRecords.forEach(row => {
     const tr = document.createElement('tr');
     
-    // Conditional text colors for punch times based on standard boundaries (9:00 AM / 540m and 6:00 PM / 1080m)
-    const firstInClass = row.FirstIn ? (row.rawFirstInMins <= 540 ? 'text-success' : 'text-danger') : 'text-muted';
-    const lastOutClass = row.LastOut ? (row.rawLastOutMins >= 1080 ? 'text-success' : 'text-danger') : 'text-muted';
+    // ONLY 'Incomplete Record' receives a colored table-danger highlight.
+    // Normal rows, late entries, and early departures must remain completely transparent.
+    if ((row.Status || '').toUpperCase() === 'INCOMPLETE RECORD') {
+      tr.classList.add('table-danger');
+    }
 
-    // Refactored Total Hours text column color-coding independently of badges
+    const name = row.Name || 'Unassigned User';
+    let nameCellContent = `<span class="fw-semibold text-dark">${name}</span>`;
+    const department = row.Department || 'Unassigned';
+    const date = row.Date || '-';
+
+    // ─── TOTAL HOURS WORKED VISUAL HIGHLIGHTS MAPPING ───
     let hoursCellContent = '';
-    if (row.TotalHours === 'Not Checked Out' || row.TotalHours === 'Not Checked In') {
-      const badgeColorClass = row.TotalHours === 'Not Checked Out' ? 'text-warning' : 'text-danger';
-      hoursCellContent = `<span class="fw-bold ${badgeColorClass}">${row.TotalHours}</span>`;
+    if (row.TotalHours === '-') {
+      hoursCellContent = `<span class="fw-bold text-secondary">Incomplete</span>`;
     } else {
-      let hoursClass = 'text-dark';
-      const hoursNum = parseFloat(row.TotalHours) || 0;
-      if (hoursNum >= 10.0) {
-        hoursClass = 'text-info'; // CYAN (Bootstrap text-info / custom cyan)
-      } else if (hoursNum >= 9.0) {
-        hoursClass = 'text-success'; // GREEN (Bootstrap text-success)
-      } else if (hoursNum >= 8.0) {
-        hoursClass = 'text-warning'; // YELLOW (Bootstrap text-warning)
-      } else {
-        hoursClass = 'text-danger'; // RED (Bootstrap text-danger)
+      const hoursNum = parseFloat(row.TotalHours);
+      let hoursClass = 'text-danger'; // <8 hours (Red)
+      if (hoursNum >= 10.00) {
+        hoursClass = 'text-info';      // 10+ hours (Cyan)
+      } else if (hoursNum >= 9.00) {
+        hoursClass = 'text-success';   // 9+ hours (Green)
+      } else if (hoursNum >= 8.00) {
+        hoursClass = 'text-warning';   // 8-9 hours (Yellow)
       }
       hoursCellContent = `<span class="fw-bold font-monospace ${hoursClass}">${row.TotalHours} hrs</span>`;
     }
 
+    // ─── DETAILED VISUAL STATUS BADGES MAPPING ───
+    let badgeClass = 'bg-secondary';
+    switch ((row.Status || '').toUpperCase()) {
+      case 'ONTIME':
+        badgeClass = 'bg-success';
+        break;
+      case 'EARLY_DEPARTURE':
+      case 'LATE_ENTRY_AND_LATE_EXIT':
+        badgeClass = 'bg-warning text-dark';
+        break;
+      case 'LATE_ENTRY_AND_EARLY_EXIT':
+        badgeClass = 'bg-danger';
+        break;
+      case 'OVERTIME':
+        badgeClass = 'bg-info text-dark';
+        break;
+      case 'INCOMPLETE RECORD':
+        badgeClass = 'bg-secondary';
+        break;
+    }
+    const statusBadge = `<span class="badge ${badgeClass} font-monospace" style="font-size: 0.8rem;">${row.Status}</span>`;
+
+    const firstInColor = getInTimeColor(row.FirstIn);
+    const lastOutColor = getOutTimeColor(row.LastOut);
+
+    const firstInCell = firstInColor ? `<span class="${firstInColor} font-monospace fw-semibold">${row.FirstIn}</span>` : `<span class="text-dark font-monospace fw-semibold">${row.FirstIn || '-'}</span>`;
+    const lastOutCell = lastOutColor ? `<span class="${lastOutColor} font-monospace fw-semibold">${row.LastOut}</span>` : `<span class="text-dark font-monospace fw-semibold">${row.LastOut || '-'}</span>`;
+
     tr.innerHTML = `
-      <td class="font-monospace fw-bold small">${row.EmployeeID}</td>
-      <td class="fw-semibold text-dark">${row.FirstName || ''}</td>
-      <td class="fw-semibold text-dark">${row.LastName || ''}</td>
-      <td><span class="text-secondary">${row.Department}</span></td>
+      <td class="font-monospace fw-bold small">${row.EmployeeID || 'UNKNOWN'}</td>
+      <td class="fw-semibold text-dark">${nameCellContent}</td>
+      <td><span class="text-secondary">${department}</span></td>
       <td><span class="text-secondary fw-medium">${row.EmpType || 'N/A'}</span></td>
-      <td><span class="font-monospace text-secondary">${row.Date}</span></td>
+      <td><span class="font-monospace text-secondary">${date}</span></td>
       <td><span class="font-monospace text-secondary">${row.Weekday || 'N/A'}</span></td>
-      <td><span class="${firstInClass} font-monospace fw-semibold">${row.FirstIn || '-'}</span></td>
-      <td><span class="${lastOutClass} font-monospace fw-semibold">${row.LastOut || '-'}</span></td>
+      <td>${firstInCell}</td>
+      <td>${lastOutCell}</td>
       <td>${hoursCellContent}</td>
+      <td>${statusBadge}</td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1 font-monospace mx-auto" onclick="viewTimeline('${row.EmployeeID}', '${name.replace(/'/g, "\\\\'")}', '${row.Date}', '${row.FirstIn}', '${row.LastOut}')">
+          <i class="bi bi-clock-history"></i> View Timeline
+        </button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
 
-  // Update Pagination Details and Controls
   document.getElementById('pagination-info').textContent = `Showing ${startIndex + 1} to ${endIndex} of ${total} entries`;
   renderPaginationControls(total);
 }
 
-// Render dynamic pagination numeric controls (truncated sliding window centering on active currentPage index)
 function renderPaginationControls(totalRecords) {
   const controls = document.getElementById('pagination-controls');
   controls.innerHTML = '';
@@ -405,7 +347,6 @@ function renderPaginationControls(totalRecords) {
   const totalPages = Math.ceil(totalRecords / rowsPerPage);
   if (totalPages <= 1) return;
 
-  // 1. First Page Button ("« First")
   const firstLi = document.createElement('li');
   firstLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
   firstLi.innerHTML = `<button class="page-link" type="button">« First</button>`;
@@ -417,28 +358,14 @@ function renderPaginationControls(totalRecords) {
   }
   controls.appendChild(firstLi);
 
-  // Centering sliding window math - maximum of 5 page number buttons centered around currentPage
   let startPage = Math.max(1, currentPage - 2);
   let endPage = Math.min(totalPages, startPage + 4);
+  if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
 
-  if (endPage - startPage < 4) {
-    startPage = Math.max(1, endPage - 4);
-  }
-
-  // Preceding Ellipsis
-  if (startPage > 1) {
-    const dotsLi = document.createElement('li');
-    dotsLi.className = 'page-item disabled';
-    dotsLi.innerHTML = `<span class="page-link">...</span>`;
-    controls.appendChild(dotsLi);
-  }
-
-  // Active numeric buttons
   for (let i = startPage; i <= endPage; i++) {
     const pageLi = document.createElement('li');
     pageLi.className = `page-item ${currentPage === i ? 'active' : ''}`;
     pageLi.innerHTML = `<button class="page-link" type="button">${i}</button>`;
-    
     pageLi.addEventListener('click', () => {
       currentPage = i;
       renderTable(currentRecords);
@@ -446,15 +373,6 @@ function renderPaginationControls(totalRecords) {
     controls.appendChild(pageLi);
   }
 
-  // Succeeding Ellipsis
-  if (endPage < totalPages) {
-    const dotsLi = document.createElement('li');
-    dotsLi.className = 'page-item disabled';
-    dotsLi.innerHTML = `<span class="page-link">...</span>`;
-    controls.appendChild(dotsLi);
-  }
-
-  // 2. Last Page Button ("Last »")
   const lastLi = document.createElement('li');
   lastLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
   lastLi.innerHTML = `<button class="page-link" type="button">Last »</button>`;
@@ -467,38 +385,15 @@ function renderPaginationControls(totalRecords) {
   controls.appendChild(lastLi);
 }
 
-// Live calculation and updates of summary card KPIs using exact formulas requested
-function updateSummaryWidgets(records) {
-  // If the complete registry isn't loaded yet, return early
-  if (!allRecords || allRecords.length === 0) return;
-
-  // 1. Total Employees: count of completely unique 'EmployeeID' profiles found across the entire dataset registry
-  const uniqueEmpsAll = new Set(allRecords.map(r => r.EmployeeID));
+function updateSummaryWidgets(records, doughnutChart) {
+  const uniqueEmpsAll = new Set(records.map(r => r.EmployeeID));
   document.getElementById('widget-total-employees').textContent = uniqueEmpsAll.size;
+  document.getElementById('widget-present-today').textContent = records.length;
 
-  // 2. Present Today & 3. Violations Today: Evaluate using actual real-world system calendar date (YYYY-MM-DD)
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-  const todayStr = `${yyyy}-${mm}-${dd}`;
+  // Count Incomplete Record from records array directly
+  const infractions = records.filter(r => (r.Status || '').toUpperCase() === 'INCOMPLETE RECORD').length;
+  document.getElementById('widget-violations-today').textContent = infractions;
 
-  const presentTodaySet = new Set(
-    allRecords.filter(r => r.rawDate === todayStr).map(r => r.EmployeeID)
-  );
-  document.getElementById('widget-present-today').textContent = presentTodaySet.size;
-
-  let violationsToday = 0;
-  allRecords.forEach(r => {
-    if (r.rawDate === todayStr) {
-      if (r.Status === 'Late Arrival' || r.Status === 'Early Departure' || r.Status === 'Late & Early') {
-        violationsToday += 1;
-      }
-    }
-  });
-  document.getElementById('widget-violations-today').textContent = violationsToday;
-
-  // 4. Avg Work Hours: Global arithmetic mean of all numeric Total Hours elements loaded (currently filtered records)
   let totalHours = 0;
   let numericCount = 0;
   records.forEach(r => {
@@ -512,316 +407,137 @@ function updateSummaryWidgets(records) {
   document.getElementById('widget-avg-hours').textContent = `${avgHours} hrs`;
 }
 
-// Detailed sequence timelines Modal popup details mapping
-window.showTimelineModal = function(empId, name, date, punches) {
-  document.getElementById('modal-employee-name').textContent = name;
-  document.getElementById('modal-employee-id').textContent = `ID: ${empId}`;
-  document.getElementById('modal-date').textContent = `Date: ${date}`;
-  
-  const container = document.getElementById('modal-timeline-container');
-  container.innerHTML = '';
-  
-  if (!punches || punches.length === 0) {
-    container.innerHTML = '<div class="text-muted italic">No punches captured for this record.</div>';
-  } else {
-    punches.forEach((punch, index) => {
-      const label = index % 2 === 0 ? 'Punch IN' : 'Punch OUT';
-      const textClass = index % 2 === 0 ? 'text-success' : 'text-primary';
-      const icon = index % 2 === 0 ? 'bi-box-arrow-in-right' : 'bi-box-arrow-left';
-      
-      const point = document.createElement('div');
-      point.className = 'timeline-point';
-      point.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between">
-          <div>
-            <span class="fw-bold ${textClass}"><i class="bi ${icon} me-1"></i> ${label}</span>
-            <span class="text-secondary small font-monospace ms-2">Sequence #${index + 1}</span>
-          </div>
-          <span class="badge bg-light text-dark font-monospace border">${punch}</span>
-        </div>
-      `;
-      container.appendChild(point);
-    });
-  }
-  
-  const modal = new bootstrap.Modal(document.getElementById('timelineModal'));
-  modal.show();
-};
+function updateDashboardCharts(lineData, doughnutData) {
+  renderLineChart(lineData || []);
+  renderDoughnutChart(doughnutData || {});
+}
 
-// TAB 2: Group and calculate dataset per employee dynamically from currently filtered records list
-window.calculateAndRenderSummary = function() {
-  const summaryBody = document.getElementById('employee-summary-body');
-  summaryBody.innerHTML = '';
-
-  if (currentRecords.length === 0) {
-    summaryBody.innerHTML = `
-      <tr>
-        <td colspan="8" class="text-center text-muted py-4">No records loaded to summarize.</td>
-      </tr>
-    `;
-    return;
-  }
-
-  const summaries = {};
-  currentRecords.forEach(rec => {
-    const empId = rec.EmployeeID;
-    if (!summaries[empId]) {
-      summaries[empId] = {
-        EmployeeID: empId,
-        Name: rec.Name,
-        TotalDays: 0,
-        TotalHours: 0,
-        LateArrivalCount: 0,
-        EarlyDepartureCount: 0,
-        CompliantDays: 0
-      };
-    }
-    
-    const sumObj = summaries[empId];
-    sumObj.TotalDays += 1;
-    sumObj.TotalHours += parseFloat(rec.TotalHours) || 0;
-    
-    if (rec.Status === 'Late Arrival' || rec.Status === 'Late & Early') {
-      sumObj.LateArrivalCount += 1;
-    }
-    if (rec.Status === 'Early Departure' || rec.Status === 'Late & Early') {
-      sumObj.EarlyDepartureCount += 1;
-    }
-    if (rec.Status === 'Compliant' || rec.Status === 'Overtime') {
-      sumObj.CompliantDays += 1;
-    }
-  });
-
-  const sortedSummaries = Object.values(summaries).sort((a, b) => a.EmployeeID.localeCompare(b.EmployeeID));
-
-  sortedSummaries.forEach(row => {
-    const avgHours = (row.TotalHours / row.TotalDays).toFixed(2);
-    const compliancePct = ((row.CompliantDays / row.TotalDays) * 100).toFixed(1);
-    
-    let badgeBg = 'bg-danger';
-    if (parseFloat(compliancePct) >= 90) {
-      badgeBg = 'bg-success';
-    } else if (parseFloat(compliancePct) >= 70) {
-      badgeBg = 'bg-warning text-dark';
-    }
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="font-monospace fw-bold small">${row.EmployeeID}</td>
-      <td class="fw-semibold text-dark">${row.Name}</td>
-      <td class="text-center fw-medium">${row.TotalDays}</td>
-      <td class="text-center font-monospace fw-bold text-primary">${avgHours} hrs</td>
-      <td class="text-center font-monospace fw-medium text-danger">${row.LateArrivalCount}</td>
-      <td class="text-center font-monospace fw-medium text-danger">${row.EarlyDepartureCount}</td>
-      <td class="text-center font-monospace fw-medium text-success">${row.CompliantDays}</td>
-      <td class="text-center">
-        <span class="badge ${badgeBg} px-2 py-1 font-monospace" style="font-size: 0.82rem;">
-          ${compliancePct}%
-        </span>
-      </td>
-    `;
-    summaryBody.appendChild(tr);
-  });
-};
-
-// Render Line Chart (Daily Attendance Trend - 3 Datasets Plot)
 function renderLineChart(dataPoints) {
   const ctx = document.getElementById('lineChartCanvas').getContext('2d');
-  
-  if (lineChart) {
-    lineChart.destroy();
-  }
-
-  const labels = dataPoints.map(dp => dp.date);
-  const avgHoursData = dataPoints.map(dp => dp.avgHours);
-  const compliantCountData = dataPoints.map(dp => dp.compliantCount);
-  const lateCountData = dataPoints.map(dp => dp.lateCount);
+  if (lineChart) lineChart.destroy();
 
   lineChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Daily Average Work Hours',
-          data: avgHoursData,
-          borderColor: '#06b6d4', // CYAN
-          backgroundColor: 'rgba(6, 182, 212, 0.08)',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#06b6d4',
-          pointBorderColor: '#ffffff',
-          pointHoverRadius: 6,
-          fill: true,
-          tension: 0.2
-        },
-        {
-          label: 'Daily Total Compliant Count',
-          data: compliantCountData,
-          borderColor: '#10b981', // GREEN
-          backgroundColor: 'transparent',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#10b981',
-          pointBorderColor: '#ffffff',
-          pointHoverRadius: 6,
-          fill: false,
-          tension: 0.2
-        },
-        {
-          label: 'Daily Total Late Arrival Count',
-          data: lateCountData,
-          borderColor: '#ef4444', // RED
-          backgroundColor: 'transparent',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#ef4444',
-          pointBorderColor: '#ffffff',
-          pointHoverRadius: 6,
-          fill: false,
-          tension: 0.2
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: {
-            color: '#475569',
-            font: { family: 'Outfit', size: 11 }
-          }
-        },
-        tooltip: {
-          backgroundColor: '#0f172a',
-          titleFont: { family: 'Outfit' },
-          bodyFont: { family: 'Inter' },
-          callbacks: {
-            label: function(context) {
-              const label = context.dataset.label || '';
-              const val = context.parsed.y;
-              if (label.includes('Average')) {
-                return ` Average Hours: ${val} hrs`;
-              }
-              return ` Count: ${val}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: {
-            color: 'rgba(0, 0, 0, 0.04)'
-          },
-          ticks: {
-            color: '#475569',
-            font: { family: 'Fira Code', size: 10 }
-          }
-        },
-        y: {
-          min: 0,
-          grid: {
-            color: 'rgba(0, 0, 0, 0.04)'
-          },
-          ticks: {
-            color: '#475569',
-            font: { family: 'Fira Code', size: 10 }
-          }
-        }
-      }
-    }
-  });
-}
-
-// Render Doughnut Chart (Status Badges Breakdown)
-function renderDoughnutChart(distribution) {
-  const ctx = document.getElementById('doughnutChartCanvas').getContext('2d');
-  
-  if (doughnutChart) {
-    doughnutChart.destroy();
-  }
-
-  const labels = Object.keys(distribution);
-  const data = Object.values(distribution);
-
-  doughnutChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: labels,
+      labels: dataPoints.map(dp => dp.date),
       datasets: [{
-        data: data,
-        backgroundColor: [
-          'rgba(5, 150, 105, 0.85)', // Compliant (Green)
-          'rgba(217, 119, 6, 0.85)',  // Late Arrival (Amber)
-          'rgba(202, 138, 4, 0.85)',   // Early Departure (Yellow)
-          'rgba(220, 38, 38, 0.85)',   // Late & Early (Red)
-          'rgba(37, 99, 235, 0.85)'   // Overtime (Blue)
-        ],
-        borderColor: '#ffffff',
+        label: 'Daily Average Work Hours',
+        data: dataPoints.map(dp => dp.avgHours),
+        borderColor: '#495057', 
+        backgroundColor: 'rgba(73, 80, 87, 0.04)',
         borderWidth: 2.5,
-        hoverOffset: 4
+        fill: true,
+        tension: 0.15,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointBackgroundColor: function(context) {
+          const val = context.raw;
+          if (val >= 10.0) return '#0dcaf0'; // Cyan
+          if (val >= 9.0) return '#198754';  // Green
+          if (val >= 8.0) return '#ffc107';  // Yellow
+          return '#dc3545';                  // Red
+        },
+        pointBorderColor: function(context) {
+          const val = context.raw;
+          if (val >= 10.0) return '#0dcaf0'; 
+          if (val >= 9.0) return '#198754';  
+          if (val >= 8.0) return '#ffc107';  
+          return '#dc3545';                  
+        },
+        segment: {
+          borderColor: function(ctx) {
+            if (ctx && ctx.p1 && ctx.p1.parsed && typeof ctx.p1.parsed.y !== 'undefined') {
+              const val = ctx.p1.parsed.y;
+              if (val >= 10.0) return '#0dcaf0'; 
+              if (val >= 9.0) return '#198754';  
+              if (val >= 8.0) return '#ffc107';  
+              return '#dc3545';                  
+            }
+            return '#dc3545';
+          }
+        }
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: {
-            color: '#475569',
-            font: { family: 'Outfit', size: 11 },
-            padding: 15
-          }
-        },
-        tooltip: {
-          backgroundColor: '#0f172a',
-          titleFont: { family: 'Outfit' },
-          bodyFont: { family: 'Inter' }
+      scales: {
+        x: { grid: { color: 'rgba(0, 0, 0, 0.03)' } },
+        y: { 
+          min: 0, 
+          max: 14, 
+          grid: { color: 'rgba(0, 0, 0, 0.03)' } 
         }
-      },
-      cutout: '65%'
+      }
     }
   });
 }
 
-// Fixed Real Export Handler: Redirects query states to standard asset streaming download
-async function handleExport(format) {
-  const filters = getFilters();
-  const queryParams = new URLSearchParams(filters);
-  queryParams.append('format', format);
+function renderDoughnutChart(distribution) {
+  const ctx = document.getElementById('doughnutChartCanvas').getContext('2d');
+  if (doughnutChart) doughnutChart.destroy();
 
-  if (format === 'excel') {
-    window.location.href = `/api/export?${queryParams.toString()}`;
-    showExportNotification('Excel CSV secure download stream initiated.');
-  } else if (format === 'pdf') {
-    try {
-      const res = await fetch(`/api/export?${queryParams.toString()}`);
-      const data = await res.json();
-      if (data.success) {
-        showExportNotification('PDF export recorded in audit log. Preparing print view...');
-        setTimeout(() => {
-          window.print();
-        }, 800);
+  const categories = ['ONTIME', 'OVERTIME', 'LATE_ENTRY_AND_LATE_EXIT', 'LATE_ENTRY_AND_EARLY_EXIT', 'EARLY_DEPARTURE'];
+  
+  const chartLabels = [];
+  const chartValues = [];
+  const statusColors = {
+    'ONTIME': '#198754', // Green
+    'OVERTIME': '#0dcaf0', // Cyan
+    'LATE_ENTRY_AND_LATE_EXIT': '#ffc107', // Yellow
+    'EARLY_DEPARTURE': '#ffc107', // Yellow
+    'LATE_ENTRY_AND_EARLY_EXIT': '#dc3545' // Red
+  };
+  
+  const bgColors = [];
+  
+  categories.forEach(cat => {
+    const val = distribution && distribution[cat] ? distribution[cat] : 0;
+    chartLabels.push(cat);
+    chartValues.push(val);
+    bgColors.push(statusColors[cat]);
+  });
+
+  doughnutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: chartLabels,
+      datasets: [{
+        data: chartValues,
+        backgroundColor: bgColors,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
       }
-    } catch (err) {
-      console.error('PDF Export log failed:', err);
     }
+  });
+}
+
+
+async function handleExport(format) {
+  const queryString = getQueryParameters();
+  if (format === 'excel') {
+    window.location.href = `/api/export?format=excel&${queryString}`;
+    showExportNotification('Excel Secure download stream initiated.');
+  } else if (format === 'pdf') {
+    showExportNotification('Compiling full multi-page report asset...');
+    window.print();
   }
 }
 
-// Helper Loader
 function showLoader(visible) {
   const loader = document.getElementById('table-loader');
   if (loader) {
-    if (visible) {
-      loader.classList.remove('d-none');
-    } else {
-      loader.classList.add('d-none');
-    }
+    visible ? loader.classList.remove('d-none') : loader.classList.add('d-none');
   }
 }
 
-// Audited export flash feedback notifications
 function showExportNotification(msg) {
   const container = document.getElementById('notification-container');
   if (!container) return;
@@ -829,10 +545,137 @@ function showExportNotification(msg) {
   alertEl.className = 'alert alert-glass-success py-2 px-3 m-0 shadow d-flex align-items-center gap-2';
   alertEl.style.fontSize = '0.85rem';
   alertEl.innerHTML = `<i class="bi bi-shield-check-fill fs-5"></i> <span>${msg}</span>`;
-  
   container.appendChild(alertEl);
   setTimeout(() => {
     alertEl.style.opacity = '0';
     setTimeout(() => alertEl.remove(), 500);
   }, 4000);
 }
+
+// 🟢 REWRITTEN CALCULATOR: HOURLY DURATION COMPLIANCE METRIC (16/18 hrs = 88.9%)
+window.calculateAndRenderSummary = function() {
+  const summaryBody = document.getElementById('employee-summary-body');
+  if (!summaryBody) return;
+  summaryBody.innerHTML = '';
+
+  if (currentRecords.length === 0) {
+    summaryBody.innerHTML = `
+      <tr>
+        <td colspan="7" class="text-center text-muted py-4">No records loaded to summarize.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  const summaries = {};
+  currentRecords.forEach(rec => {
+    const empId = rec.EmployeeID || rec.EmployeeNo || 'UNKNOWN';
+    if (!summaries[empId]) {
+      summaries[empId] = {
+        EmployeeID: empId,
+        Name: rec.Name || 'Standard Employee',
+        TotalDays: 0,
+        TotalHoursWorked: 0,
+        LateCount: 0,
+        EarlyCount: 0
+      };
+    }
+    
+    const sumObj = summaries[empId];
+    sumObj.TotalDays += 1;
+    
+    const parsedHours = parseFloat(rec.TotalHours);
+    if (!isNaN(parsedHours)) {
+      sumObj.TotalHoursWorked += parsedHours;
+    }
+    
+    const testStatus = (rec.Status || '').toUpperCase();
+    if (testStatus.includes('LATE_ENTRY')) {
+      sumObj.LateCount += 1;
+    }
+    if (testStatus.includes('EARLY_EXIT') || testStatus === 'EARLY_DEPARTURE') {
+      sumObj.EarlyCount += 1;
+    }
+  });
+
+  const sortedSummaries = Object.values(summaries).sort((a, b) => a.EmployeeID.localeCompare(b.EmployeeID));
+
+  sortedSummaries.forEach(row => {
+    // Expected hours parameter rule: 9.00 hours per day present
+    const totalExpectedHours = row.TotalDays * 9;
+    
+    // Calculate net duration percentage matrix
+    let compliancePct = '0.0';
+    if (totalExpectedHours > 0) {
+      compliancePct = ((row.TotalHoursWorked / totalExpectedHours) * 100).toFixed(1);
+    }
+    
+    // Constrain maximum view ceiling at 100.0%
+    if (parseFloat(compliancePct) > 100.0) compliancePct = "100.0";
+
+    // ONLY the Compliance Score receives a badge color assignment:
+    // Green badge for >= 90%, yellow for 75-89%, red for < 75%
+    let complianceBadgeClass = 'bg-success'; // default (>= 90%)
+    const compPctNum = parseFloat(compliancePct);
+    if (compPctNum < 75.0) {
+      complianceBadgeClass = 'bg-danger';
+    } else if (compPctNum < 90.0) {
+      complianceBadgeClass = 'bg-warning text-dark';
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="text-nowrap">${row.EmployeeID}</td>
+      <td class="text-nowrap">${row.Name}</td>
+      <td class="text-center">${row.TotalDays}</td>
+      <td class="text-center">${row.LateCount}</td>
+      <td class="text-center">${row.EarlyCount}</td>
+      <td class="text-center text-nowrap">${row.TotalHoursWorked.toFixed(2)} / ${totalExpectedHours.toFixed(2)} hrs</td>
+      <td class="text-center">
+        <span class="badge ${complianceBadgeClass} px-3 py-1.5 fs-6 shadow-sm">${compliancePct}%</span>
+      </td>
+    `;
+    summaryBody.appendChild(tr);
+  });
+};
+
+window.viewTimeline = function(empId, name, date, firstIn, lastOut) {
+  document.getElementById('modal-employee-name').textContent = name;
+  document.getElementById('modal-employee-id').textContent = `ID: ${empId}`;
+  document.getElementById('modal-date').textContent = `Date: ${date}`;
+  
+  const container = document.getElementById('modal-timeline-container');
+  container.innerHTML = '';
+  
+  const firstInEl = document.createElement('div');
+  firstInEl.className = 'mb-3 position-relative';
+  firstInEl.innerHTML = `
+    <div class="position-absolute bg-primary rounded-circle" style="width: 12px; height: 12px; left: -31px; top: 6px; border: 2px solid #fff;"></div>
+    <div class="fw-bold text-dark">First Check In</div>
+    <div class="text-secondary small font-monospace">${firstIn}</div>
+  `;
+  container.appendChild(firstInEl);
+  
+  if (lastOut && lastOut !== 'Missing Checkout' && lastOut !== '-') {
+    const lastOutEl = document.createElement('div');
+    lastOutEl.className = 'position-relative';
+    lastOutEl.innerHTML = `
+      <div class="position-absolute bg-success rounded-circle" style="width: 12px; height: 12px; left: -31px; top: 6px; border: 2px solid #fff;"></div>
+      <div class="fw-bold text-dark">Last Check Out</div>
+      <div class="text-secondary small font-monospace">${lastOut}</div>
+    `;
+    container.appendChild(lastOutEl);
+  } else {
+    const lastOutEl = document.createElement('div');
+    lastOutEl.className = 'position-relative';
+    lastOutEl.innerHTML = `
+      <div class="position-absolute bg-danger rounded-circle" style="width: 12px; height: 12px; left: -31px; top: 6px; border: 2px solid #fff;"></div>
+      <div class="fw-bold text-danger">Last Check Out</div>
+      <div class="text-secondary small font-monospace text-danger">Missing checkout registration</div>
+    `;
+    container.appendChild(lastOutEl);
+  }
+  
+  const modal = new bootstrap.Modal(document.getElementById('timelineModal'));
+  modal.show();
+};
