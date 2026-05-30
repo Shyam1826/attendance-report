@@ -17,4 +17,4 @@ data/session-audit.log
 .DS_Store
 .idea/
 .vscode/
-build/
+build/iisnode/ 
